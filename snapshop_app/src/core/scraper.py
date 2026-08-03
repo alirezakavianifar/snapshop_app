@@ -16,30 +16,70 @@ async def download_inventory_excel(context, download_dir: Path) -> Optional[Path
     """
     Download current inventory Excel file from SnappShop seller panel.
     """
-    page = await context.new_page()
+    page = context.pages[0] if context.pages else await context.new_page()
     try:
         logger.info("Navigating to bulk-update page...")
         await page.goto("https://seller.snappshop.ir/inventory/bulk-update", timeout=30000)
         await page.wait_for_load_state("networkidle")
+        await asyncio.sleep(3)
 
-        # Click request Excel export button
-        button = await page.wait_for_selector(".BulkUpdateHeader_card__button__1AEYW", timeout=15000)
-        if button:
-            await button.click()
-            logger.info("Export requested, waiting for file preparation...")
-            await asyncio.sleep(5)
+        # 1. Inspect header for existing export download link
+        header_els = await page.query_selector_all("[class*='BulkUpdateHeader'] a, [class*='BulkUpdateHeader'] button")
+        logger.info(f"Bulk update header elements found: {len(header_els)}")
 
-        # Listen for download event
-        async with page.expect_download(timeout=60000) as download_info:
-            download_btn = await page.wait_for_selector(".BulkUpdateHeader_card__download__f_r_n", timeout=30000)
-            if download_btn:
-                await download_btn.click()
+        download_el = None
+        for el in header_els:
+            txt = (await el.inner_text()).strip()
+            cls = (await el.get_attribute("class")) or ""
+            if "download" in cls.lower() or "خروجی" in txt or "دانلود" in txt:
+                tag = await el.evaluate("e => e.tagName")
+                if tag == "A" or "download" in cls.lower():
+                    download_el = el
+                    break
+
+        if download_el:
+            logger.info("Found available header download link. Triggering download...")
+            try:
+                async with page.expect_download(timeout=20000) as download_info:
+                    await download_el.click(force=True)
+                download = await download_info.value
+                saved_path = download_dir / download.suggested_filename
+                await download.save_as(str(saved_path))
+                logger.info(f"Downloaded inventory Excel: {saved_path}")
+                return saved_path
+            except Exception as dl_err:
+                logger.warning(f"Direct download click failed: {dl_err}. Attempting new export request...")
+
+        # 2. If not immediately downloadable, request new export
+        req_btn = await page.query_selector(".BulkUpdateHeader_card__button__1AEYW, button:has-text('دریافت خروجی'), button:has-text('خروجی')")
+        if req_btn and not await req_btn.is_disabled():
+            await req_btn.click(force=True)
+            logger.info("Requested new inventory export, waiting 8s for preparation...")
+            await asyncio.sleep(8)
+
+        # 3. Re-inspect header for newly generated download link
+        header_els = await page.query_selector_all("[class*='BulkUpdateHeader'] a, [class*='BulkUpdateHeader'] button")
+        for el in header_els:
+            txt = (await el.inner_text()).strip()
+            cls = (await el.get_attribute("class")) or ""
+            if "download" in cls.lower() or "خروجی" in txt or "دانلود" in txt:
+                download_el = el
+                break
+
+        if not download_el:
+            raise RuntimeError("Download link not found in header after export request.")
+
+        async with page.expect_download(timeout=30000) as download_info:
+            await download_el.click(force=True)
 
         download = await download_info.value
         saved_path = download_dir / download.suggested_filename
         await download.save_as(str(saved_path))
         logger.info(f"Downloaded inventory Excel: {saved_path}")
         return saved_path
+    except Exception as e:
+        logger.error(f"Failed to download inventory Excel: {e}")
+        return None
     except Exception as e:
         logger.error(f"Failed to download inventory Excel: {e}")
         return None
@@ -51,12 +91,14 @@ async def upload_inventory_excel(context, file_path: Path) -> bool:
     """
     Upload updated inventory Excel file (01.xlsx) to SnappShop seller panel.
     """
-    page = await context.new_page()
+    page = context.pages[0] if context.pages else await context.new_page()
     try:
         logger.info(f"Uploading file {file_path} to seller panel...")
         await page.goto("https://seller.snappshop.ir/inventory/bulk-update", timeout=30000)
+        await page.wait_for_load_state("networkidle")
+        await asyncio.sleep(2)
         
-        file_input = await page.wait_for_selector("input[type='file']", timeout=15000)
+        file_input = await page.wait_for_selector("input[type='file']", state="attached", timeout=15000)
         if file_input:
             await file_input.set_input_files(str(file_path))
             await random_delay(3, 5)
@@ -78,7 +120,7 @@ async def scrape_storefront_buybox(
     """
     Scrape seller store items and competitor prices from SnappShop public storefront.
     """
-    page = await context.new_page()
+    page = context.pages[0] if context.pages else await context.new_page()
     competitor_data = []
 
     try:
@@ -113,7 +155,8 @@ async def scrape_storefront_buybox(
 
         for href in product_hrefs:
             try:
-                await page.goto(href, timeout=20000)
+                full_url = href if href.startswith("http") else f"https://snappshop.ir{href}"
+                await page.goto(full_url, timeout=20000)
                 await random_delay(0.5, 1.0)
 
                 title_el = await page.query_selector("h1.text-gray-900")

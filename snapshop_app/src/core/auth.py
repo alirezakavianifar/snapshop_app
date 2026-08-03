@@ -12,11 +12,35 @@ OTPCallback = Callable[[str], Awaitable[str]]
 async def check_is_logged_in(page) -> bool:
     """Verify if currently logged into seller panel."""
     try:
+        current_url = page.url.rstrip("/")
+        # Fast-check if current page is unauthenticated landing/login/otp page
+        if (
+            current_url == "https://seller.snappshop.ir"
+            or any(sub in current_url.lower() for sub in ["login", "otp", "auth", "verify"])
+            or await page.query_selector(
+                "#phone-number-input, input[name='cellphone'], input[name='mobile'], input[name='username'], input[type='tel'], input[autocomplete='one-time-code'], input[name='code']"
+            )
+        ):
+            return False
+
+        # Fast-check if already on authenticated route
+        if "inventory" in current_url.lower() or "dashboard" in current_url.lower():
+            return True
+
+        # Otherwise navigate to bulk-update to verify session
         await page.goto("https://seller.snappshop.ir/inventory/bulk-update", timeout=15000)
         await page.wait_for_load_state("networkidle", timeout=10000)
-        # Check if redirected to login page or phone number input
-        if "login" in page.url or await page.query_selector("#phone-number-input"):
+        current_url = page.url.rstrip("/")
+
+        if (
+            current_url == "https://seller.snappshop.ir"
+            or any(sub in current_url.lower() for sub in ["login", "otp", "auth", "verify"])
+            or await page.query_selector(
+                "#phone-number-input, input[name='cellphone'], input[name='mobile'], input[name='username'], input[type='tel'], input[autocomplete='one-time-code'], input[name='code']"
+            )
+        ):
             return False
+
         return True
     except Exception as e:
         logger.warning(f"Session check error: {e}")
@@ -33,7 +57,7 @@ async def login_to_seller_panel(
     Log in to seller panel using password or OTP prompt callback.
     Saves storage state upon successful login.
     """
-    page = await context.new_page()
+    page = context.pages[0] if context.pages else await context.new_page()
     try:
         await page.goto("https://seller.snappshop.ir/", timeout=20000)
         await random_delay(1, 2)
@@ -42,22 +66,47 @@ async def login_to_seller_panel(
             logger.info("Existing session is valid. Skipping login.")
             return True
 
-        logger.info(f"Initiating login for phone: {phone_number}")
-        await page.fill("#phone-number-input", phone_number)
-        await page.click("//button[contains(text(), 'تایید و ادامه')]")
+        phone = phone_number or settings.SNAPSHOP_PHONE_NUMBER or "09207051391"
+        logger.info(f"Initiating login for phone: {phone}")
+        
+        phone_input = await page.wait_for_selector(
+            "#phone-number-input, input[name='cellphone'], input[name='mobile'], input[name='username'], input[name='phone'], input[type='tel'], input[type='text']",
+            timeout=10000,
+        )
+        if phone_input:
+            await phone_input.fill(phone)
+
+        submit_btn = await page.wait_for_selector(
+            "xpath=//button[contains(text(), 'تایید و ادامه') or contains(text(), 'ادامه') or contains(text(), 'تایید') or @type='submit']",
+            timeout=5000,
+        )
+        if submit_btn:
+            await submit_btn.click()
         await random_delay(1, 2)
 
-        if password:
+        pwd = password or settings.SNAPSHOP_PASSWORD or "Roya9084@"
+        if pwd:
             logger.info("Attempting password authentication...")
-            password_input = await page.wait_for_selector("input[name='password']", timeout=10000)
-            if password_input:
-                await password_input.fill(password)
-                await page.click("//button[contains(text(), 'ورود به حساب کاربری')]")
-                await random_delay(3, 5)
+            try:
+                password_input = await page.wait_for_selector(
+                    "input[type='password'], input[name='password']",
+                    timeout=10000,
+                )
+                if password_input:
+                    await password_input.fill(pwd)
+                    login_btn = await page.wait_for_selector(
+                        "xpath=//button[contains(text(), 'ورود') or @type='submit']",
+                        timeout=5000,
+                    )
+                    if login_btn:
+                        await login_btn.click()
+                    await random_delay(3, 5)
+            except Exception as pass_err:
+                logger.warning(f"Could not auto-fill password: {pass_err}")
 
         if not await check_is_logged_in(page):
             # Fallback to OTP entry
-            logger.info("OTP verification required.")
+            logger.info("OTP verification required. Waiting 2 minutes (120s) for OTP completion...")
             if otp_callback:
                 otp_code = await otp_callback(phone_number)
                 if otp_code:
@@ -69,6 +118,12 @@ async def login_to_seller_panel(
                         for i, char in enumerate(otp_code):
                             await otp_inputs[i].fill(char)
                     await random_delay(2, 4)
+            else:
+                # Wait 2 minutes checking for login every 5 seconds
+                for _ in range(0, 120, 5):
+                    await asyncio.sleep(5)
+                    if await check_is_logged_in(page):
+                        break
 
         success = await check_is_logged_in(page)
         if success:

@@ -16,8 +16,8 @@ class Settings:
     TELEGRAM_ADMIN_CHAT_ID: Optional[str] = os.getenv("TELEGRAM_ADMIN_CHAT_ID", None)
 
     # SnappShop Seller Panel Credentials
-    SNAPSHOP_PHONE_NUMBER: str = os.getenv("SNAPSHOP_PHONE_NUMBER", "")
-    SNAPSHOP_PASSWORD: Optional[str] = os.getenv("SNAPSHOP_PASSWORD", None)
+    SNAPSHOP_PHONE_NUMBER: str = os.getenv("SNAPSHOP_PHONE_NUMBER", "09207051391")
+    SNAPSHOP_PASSWORD: Optional[str] = os.getenv("SNAPSHOP_PASSWORD", "Roya9084@")
     SNAPSHOP_STORE_URL: str = os.getenv(
         "SNAPSHOP_STORE_URL", "https://snappshop.ir/seller/qP4j1w"
     )

@@ -32,12 +32,15 @@ async def run_interactive_login():
     # Ensure downloads directory exists
     settings.SESSION_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    # Launch browser with headless=False so user can see and interact
+    # Support HEADLESS env var or default to False if interactive
+    is_headless = os.environ.get("HEADLESS", "false").lower() in ("true", "1", "yes")
+
+    # Launch browser context
     async with get_browser_context(
         session_file=settings.SESSION_STATE_FILE,
-        headless=False
+        headless=is_headless
     ) as context:
-        page = await context.new_page()
+        page = context.pages[0] if context.pages else await context.new_page()
         
         logger.info("Navigating to SnappShop seller panel (https://seller.snappshop.ir/)...")
         await page.goto("https://seller.snappshop.ir/", timeout=30000)
@@ -46,51 +49,82 @@ async def run_interactive_login():
         if await check_is_logged_in(page):
             logger.info("✅ An active valid session was already found and restored!")
         else:
-            phone = settings.SNAPSHOP_PHONE_NUMBER
-            password = settings.SNAPSHOP_PASSWORD
+            phone = settings.SNAPSHOP_PHONE_NUMBER or "09207051391"
+            password = settings.SNAPSHOP_PASSWORD or "Roya9084@"
 
             if phone:
                 logger.info(f"Filling phone number from settings: {phone}")
                 try:
-                    await page.fill("#phone-number-input", phone)
-                    await page.click("//button[contains(text(), 'تایید و ادامه')]")
-                    await random_delay(1, 2)
+                    phone_input = await page.wait_for_selector(
+                        "#phone-number-input, input[name='cellphone'], input[name='mobile'], input[name='username'], input[name='phone'], input[type='tel'], input[type='text']",
+                        timeout=10000,
+                    )
+                    if phone_input:
+                        await phone_input.fill(phone)
+
+                    submit_btn = await page.wait_for_selector(
+                        "xpath=//button[contains(text(), 'تایید و ادامه') or contains(text(), 'ادامه') or contains(text(), 'تایید') or @type='submit']",
+                        timeout=5000,
+                    )
+                    if submit_btn:
+                        await submit_btn.click()
+                    await random_delay(2, 3)
                 except Exception as fill_err:
                     logger.warning(f"Could not auto-fill phone number: {fill_err}")
 
             if password:
                 logger.info("Attempting to fill password from settings...")
                 try:
-                    password_input = await page.wait_for_selector("input[name='password']", timeout=5000)
+                    password_input = await page.wait_for_selector(
+                        "input[type='password'], input[name='password']",
+                        timeout=10000,
+                    )
                     if password_input:
                         await password_input.fill(password)
-                        await page.click("//button[contains(text(), 'ورود به حساب کاربری')]")
-                        await random_delay(2, 3)
+                        login_btn = await page.wait_for_selector(
+                            "xpath=//button[contains(text(), 'ورود') or @type='submit']",
+                            timeout=5000,
+                        )
+                        if login_btn:
+                            await login_btn.click()
+                        await random_delay(4, 6)
                 except Exception as pass_err:
                     logger.warning(f"Could not auto-fill password: {pass_err}")
 
-            logger.info("\n" + "=" * 60)
-            logger.info(" ACTION REQUIRED:")
-            logger.info(" Please enter the SMS code (OTP) in the open browser window.")
-            logger.info(" Once you have logged in and see the seller panel dashboard,")
-            logger.info(" return here and press ENTER to save the session state.")
-            logger.info("=" * 60 + "\n")
+            # Check if login completed after password entry
+            if not await check_is_logged_in(page):
+                logger.info("\n" + "=" * 60)
+                logger.info(" ACTION REQUIRED:")
+                logger.info(" SMS OTP code page reached. Waiting 2 minutes (120 seconds) for OTP entry...")
+                logger.info(" Please enter the SMS OTP code received on phone.")
+                logger.info("=" * 60 + "\n")
 
-            # Pause execution asynchronously so user can complete manual login
-            await asyncio.get_event_loop().run_in_executor(None, input, "Press ENTER after login is complete... ")
+                # Wait 2 minutes (120s) checking for successful login every 5 seconds
+                total_wait_seconds = 120
+                poll_interval = 5
+                for elapsed in range(0, total_wait_seconds, poll_interval):
+                    await asyncio.sleep(poll_interval)
+                    if await check_is_logged_in(page):
+                        logger.info(f"✅ Login successfully detected after {elapsed + poll_interval} seconds!")
+                        break
 
-        # Verify session state
+        # Final session verification
         is_logged_in = await check_is_logged_in(page)
         if is_logged_in:
             await context.storage_state(path=str(settings.SESSION_STATE_FILE))
             logger.info("==========================================================")
             logger.info(" SUCCESS! Session state saved successfully.")
             logger.info(f" Saved to: {settings.SESSION_STATE_FILE}")
-            logger.info(" Future bot cycles will reuse this session and bypass 2FA SMS.")
             logger.info("==========================================================")
             return True
         else:
-            logger.error("❌ Session check failed. Please re-run this setup utility.")
+            logger.error("❌ Session check failed: User is not logged into SnappShop seller panel.")
+            # Remove invalid session state file
+            if settings.SESSION_STATE_FILE.exists():
+                try:
+                    settings.SESSION_STATE_FILE.unlink()
+                except Exception:
+                    pass
             return False
 
 

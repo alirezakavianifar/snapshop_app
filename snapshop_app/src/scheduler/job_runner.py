@@ -1,3 +1,4 @@
+import os
 import asyncio
 import logging
 from pathlib import Path
@@ -25,7 +26,8 @@ async def run_sync_cycle(notifier: Optional[TelegramNotifier] = None) -> bool:
     notifier = notifier or TelegramNotifier()
 
     try:
-        async with get_browser_context(session_file=settings.SESSION_STATE_FILE) as context:
+        is_headless = os.environ.get("HEADLESS", "true").lower() in ("true", "1", "yes")
+        async with get_browser_context(session_file=settings.SESSION_STATE_FILE, headless=is_headless) as context:
             # Step 1: Authentication & Session Verification
             authenticated = await login_to_seller_panel(
                 context=context,
