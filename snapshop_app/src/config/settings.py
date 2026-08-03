@@ -1,0 +1,42 @@
+import os
+from pathlib import Path
+from typing import Optional
+from dotenv import load_dotenv
+
+# Load .env if present
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+load_dotenv(BASE_DIR / ".env")
+
+
+class Settings:
+    # Telegram Bot Settings
+    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    TELEGRAM_ADMIN_CHAT_ID: Optional[str] = os.getenv("TELEGRAM_ADMIN_CHAT_ID", None)
+
+    # SnappShop Seller Panel Credentials
+    SNAPSHOP_PHONE_NUMBER: str = os.getenv("SNAPSHOP_PHONE_NUMBER", "")
+    SNAPSHOP_PASSWORD: Optional[str] = os.getenv("SNAPSHOP_PASSWORD", None)
+    SNAPSHOP_STORE_URL: str = os.getenv(
+        "SNAPSHOP_STORE_URL", "https://snappshop.ir/seller/g3aPbQ"
+    )
+    SNAPSHOP_COMPANY_NAME: str = os.getenv("SNAPSHOP_COMPANY_NAME", "چادوک")
+
+    # Bot Execution Config
+    CHECK_INTERVAL_MINUTES: int = int(os.getenv("CHECK_INTERVAL_MINUTES", "20"))
+    DOWNLOADS_DIR: Path = BASE_DIR / os.getenv("DOWNLOADS_DIR", "downloads")
+    SESSION_STATE_FILE: Path = BASE_DIR / os.getenv(
+        "SESSION_STATE_FILE", "downloads/storage_state.json"
+    )
+    DATABASE_PATH: Path = BASE_DIR / os.getenv("DATABASE_PATH", "downloads/bot_state.db")
+
+    # Default Product Pricing Steps (in Tomans)
+    DEFAULT_INCREASE_STEP: int = int(os.getenv("DEFAULT_INCREASE_STEP", "1000"))
+    DEFAULT_DECREASE_STEP: int = int(os.getenv("DEFAULT_DECREASE_STEP", "1000"))
+
+    def __init__(self):
+        self.DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        self.SESSION_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        self.DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+
+settings = Settings()
