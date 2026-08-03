@@ -10,7 +10,7 @@ sys.path.insert(0, str(BASE_DIR))
 
 from src.config.settings import settings
 from src.core.browser import get_browser_context, random_delay
-from src.core.auth import check_is_logged_in
+from src.core.auth import check_is_logged_in, check_is_logged_in_passive
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,7 +46,7 @@ async def run_interactive_login():
         await page.goto("https://seller.snappshop.ir/", timeout=30000)
         await random_delay(1, 2)
 
-        if await check_is_logged_in(page):
+        if await check_is_logged_in_passive(page):
             logger.info("✅ An active valid session was already found and restored!")
         else:
             phone = settings.SNAPSHOP_PHONE_NUMBER or "09207051391"
@@ -92,20 +92,19 @@ async def run_interactive_login():
                     logger.warning(f"Could not auto-fill password: {pass_err}")
 
             # Check if login completed after password entry
-            if not await check_is_logged_in(page):
+            if not await check_is_logged_in_passive(page):
                 logger.info("\n" + "=" * 60)
                 logger.info(" ACTION REQUIRED:")
                 logger.info(" SMS OTP code page reached. Waiting 2 minutes (120 seconds) for OTP entry...")
                 logger.info(" Please enter the SMS OTP code received on phone.")
                 logger.info("=" * 60 + "\n")
 
-                # Wait 2 minutes (120s) checking for successful login every 5 seconds
+                # Wait 2 minutes (120s) checking for successful login every 2 seconds passively
                 total_wait_seconds = 120
-                poll_interval = 5
-                for elapsed in range(0, total_wait_seconds, poll_interval):
-                    await asyncio.sleep(poll_interval)
-                    if await check_is_logged_in(page):
-                        logger.info(f"✅ Login successfully detected after {elapsed + poll_interval} seconds!")
+                for _ in range(60):
+                    await asyncio.sleep(2)
+                    if await check_is_logged_in_passive(page):
+                        logger.info("✅ Login successfully detected after OTP entry!")
                         break
 
         # Final session verification
