@@ -81,13 +81,25 @@ async def run_interactive_login():
                     )
                     if password_input:
                         await password_input.fill(password)
-                        login_btn = await page.wait_for_selector(
-                            "xpath=//button[contains(text(), 'ورود') or @type='submit']",
-                            timeout=5000,
+                        await random_delay(0.5, 1.0)
+
+                        # 1. Native Enter keypress submit
+                        logger.info("Submitting password via Enter key...")
+                        await password_input.press("Enter")
+                        await random_delay(1.5, 2.5)
+
+                        # 2. Resilient Fallback: Click 'ورود' button explicitly with force & JS click if still visible
+                        login_btn = await page.query_selector(
+                            "button[type='submit'], xpath=//button[contains(text(), 'ورود')]"
                         )
-                        if login_btn:
-                            await login_btn.click()
-                        await random_delay(4, 6)
+                        if login_btn and await login_btn.is_visible():
+                            logger.info("Clicking 'ورود' submit button directly...")
+                            try:
+                                await login_btn.click(force=True)
+                            except Exception:
+                                await page.evaluate("el => el.click()", login_btn)
+
+                        await random_delay(3, 5)
                 except Exception as pass_err:
                     logger.warning(f"Could not auto-fill password: {pass_err}")
 
