@@ -1,11 +1,13 @@
 import os
 from pathlib import Path
 from typing import Optional
-from dotenv import load_dotenv
 
-# Load .env if present
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-load_dotenv(BASE_DIR / ".env")
+try:
+    from dotenv import load_dotenv
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
+    load_dotenv(BASE_DIR / ".env")
+except ImportError:
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings:
