@@ -144,6 +144,55 @@ class SnappShopAppGUI:
         )
         log_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
+        # Log Toolbar (Copy / Clear buttons)
+        log_toolbar = tk.Frame(log_frame, bg=self.BG_COLOR, pady=2)
+        log_toolbar.pack(fill="x", pady=(0, 5))
+
+        btn_copy = tk.Button(
+            log_toolbar,
+            text="📋 Copy All Logs",
+            font=("Segoe UI", 9, "bold"),
+            bg="#313244",
+            fg=self.TEXT_COLOR,
+            activebackground=self.ACCENT_COLOR,
+            activeforeground="#000000",
+            relief="flat",
+            padx=8,
+            pady=3,
+            command=self.copy_all_logs,
+        )
+        btn_copy.pack(side="left", padx=(0, 5))
+
+        btn_copy_sel = tk.Button(
+            log_toolbar,
+            text="✂️ Copy Selected",
+            font=("Segoe UI", 9),
+            bg="#313244",
+            fg=self.TEXT_COLOR,
+            activebackground=self.ACCENT_COLOR,
+            activeforeground="#000000",
+            relief="flat",
+            padx=8,
+            pady=3,
+            command=self.copy_selected_log,
+        )
+        btn_copy_sel.pack(side="left", padx=5)
+
+        btn_clear = tk.Button(
+            log_toolbar,
+            text="🗑️ Clear Logs",
+            font=("Segoe UI", 9, "bold"),
+            bg="#313244",
+            fg=self.DANGER_COLOR,
+            activebackground=self.DANGER_COLOR,
+            activeforeground="#11111b",
+            relief="flat",
+            padx=8,
+            pady=3,
+            command=self.clear_activity_logs,
+        )
+        btn_clear.pack(side="right", padx=(5, 0))
+
         self.log_area = scrolledtext.ScrolledText(
             log_frame,
             font=("Consolas", 9),
@@ -153,6 +202,8 @@ class SnappShopAppGUI:
             wrap="word",
         )
         self.log_area.pack(fill="both", expand=True)
+
+        self._attach_log_context_menu()
 
     def _build_settings_tab(self):
         settings_card = tk.Frame(self.tab_settings, bg=self.CARD_BG, pady=15, padx=15)
@@ -318,6 +369,56 @@ CHECK_INTERVAL_MINUTES="{self.vars['interval_var'].get()}"
             self.root.after(2000, update_logs)
 
         update_logs()
+
+    def copy_all_logs(self):
+        text = self.log_area.get("1.0", "end-1c")
+        if text.strip():
+            self.root.clipboard_clear()
+            self.root.clipboard_append(text)
+            messagebox.showinfo("Copied", "All activity logs copied to clipboard!")
+
+    def copy_selected_log(self):
+        try:
+            selected_text = self.log_area.get("sel.first", "sel.last")
+            if selected_text:
+                self.root.clipboard_clear()
+                self.root.clipboard_append(selected_text)
+                messagebox.showinfo("Copied", "Selected text copied to clipboard!")
+        except tk.TclError:
+            messagebox.showwarning("No Selection", "Please select text in the log area to copy.")
+
+    def clear_activity_logs(self):
+        if messagebox.askyesno("Confirm Clear", "Clear activity log view and log file?"):
+            self.log_area.delete("1.0", "end")
+            log_file = BASE_DIR / "downloads" / "bot_activity.log"
+            if log_file.exists():
+                try:
+                    with open(log_file, "w", encoding="utf-8") as f:
+                        f.write("")
+                    self.last_log_size = 0
+                except Exception as e:
+                    logging.warning(f"Could not clear log file: {e}")
+
+    def _attach_log_context_menu(self):
+        self.log_menu = tk.Menu(
+            self.log_area,
+            tearoff=0,
+            bg="#2b2b3b",
+            fg=self.TEXT_COLOR,
+            activebackground=self.ACCENT_COLOR,
+            activeforeground="#11111b"
+        )
+        self.log_menu.add_command(label="📋 Copy All Logs", command=self.copy_all_logs)
+        self.log_menu.add_command(label="✂️ Copy Selected Text", command=self.copy_selected_log)
+        self.log_menu.add_separator()
+        self.log_menu.add_command(label="Select All", command=lambda: self.log_area.tag_add("sel", "1.0", "end"))
+        self.log_menu.add_separator()
+        self.log_menu.add_command(label="🗑️ Clear Activity Logs", command=self.clear_activity_logs)
+
+        def popup(event):
+            self.log_menu.tk_popup(event.x_root, event.y_root)
+
+        self.log_area.bind("<Button-3>", popup)
 
 
 def main():
