@@ -21,7 +21,7 @@ class Settings:
     SNAPSHOP_STORE_URL: str = os.getenv(
         "SNAPSHOP_STORE_URL", "https://snappshop.ir/seller/qP4j1w"
     )
-    SNAPSHOP_COMPANY_NAME: str = os.getenv("SNAPSHOP_COMPANY_NAME", "چادوک")
+    SNAPSHOP_COMPANY_NAME: str = os.getenv("SNAPSHOP_COMPANY_NAME", "گالری فیگارو")
 
     # Bot Execution Config
     CHECK_INTERVAL_MINUTES: int = int(os.getenv("CHECK_INTERVAL_MINUTES", "20"))

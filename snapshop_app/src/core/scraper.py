@@ -112,6 +112,18 @@ async def upload_inventory_excel(context, file_path: Path) -> bool:
         await page.close()
 
 
+def normalize_persian_text(text: str) -> str:
+    """
+    Normalize Persian string characters to avoid mismatch due to Ye (ي/ی), Kef (ك/ک), ZWNJ, and spacing.
+    """
+    if not text:
+        return ""
+    text = text.replace("\u064a", "\u06cc").replace("\u0649", "\u06cc")
+    text = text.replace("\u0643", "\u06a9")
+    text = text.replace("\u200c", " ").replace("\u200b", " ").replace("\xa0", " ")
+    return " ".join(text.split()).strip()
+
+
 async def scrape_storefront_buybox(
     context,
     store_url: str,
@@ -153,6 +165,8 @@ async def scrape_storefront_buybox(
 
         logger.info(f"Collected {len(product_hrefs)} product URLs. Extracting buybox details...")
 
+        clean_company = normalize_persian_text(company_name or "گالری فیگارو")
+
         for href in product_hrefs:
             try:
                 full_url = href if href.startswith("http") else f"https://snappshop.ir{href}"
@@ -164,13 +178,21 @@ async def scrape_storefront_buybox(
 
                 seller_el = await page.query_selector(".SellerItem_pdp-seller-item__info__1Uljc span")
                 current_seller = await seller_el.inner_text() if seller_el else ""
+                clean_current_seller = normalize_persian_text(current_seller)
 
                 vendor_sections = await page.query_selector_all(".VendorBox_vendor-box-desktop__3HwfD section")
                 
                 second_seller = ""
                 second_price = None
 
-                if len(vendor_sections) >= 2 and current_seller == company_name:
+                is_our_store = (
+                    clean_company in clean_current_seller
+                    or clean_current_seller in clean_company
+                    or "فیگارو" in clean_current_seller
+                    or "figaro" in clean_current_seller.lower()
+                )
+
+                if len(vendor_sections) >= 2 and is_our_store:
                     sec = vendor_sections[1]
                     s_a = await sec.query_selector("a")
                     second_seller = await s_a.get_attribute("title") if s_a else ""
