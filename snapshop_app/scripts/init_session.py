@@ -108,17 +108,17 @@ async def run_interactive_login():
                         break
 
         # Final session verification
-        is_logged_in = await check_is_logged_in(page)
-        if is_logged_in:
+        is_logged_in = await check_is_logged_in_passive(page) or await check_is_logged_in(page)
+        current_url = page.url.rstrip("/")
+        if is_logged_in and ("inventory" in current_url.lower() or "dashboard" in current_url.lower()):
             await context.storage_state(path=str(settings.SESSION_STATE_FILE))
             logger.info("==========================================================")
-            logger.info(" SUCCESS! Session state saved successfully.")
+            logger.info(" SUCCESS! Verified 7-day seller session state saved.")
             logger.info(f" Saved to: {settings.SESSION_STATE_FILE}")
             logger.info("==========================================================")
             return True
         else:
-            logger.error("❌ Session check failed: User is not logged into SnappShop seller panel.")
-            # Remove invalid session state file
+            logger.error("❌ Session check failed: User is not fully inside SnappShop seller panel.")
             if settings.SESSION_STATE_FILE.exists():
                 try:
                     settings.SESSION_STATE_FILE.unlink()

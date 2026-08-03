@@ -134,16 +134,22 @@ async def login_to_seller_panel(
                     logger.info("Detected successful OTP login redirect!")
                     break
 
-        success = await check_is_logged_in(page)
+        success = await check_is_logged_in_passive(page) or await check_is_logged_in(page)
         if success:
-            logger.info("Login successful. Session updated.")
-            if settings.SESSION_STATE_FILE:
-                try:
-                    settings.SESSION_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-                    await context.storage_state(path=str(settings.SESSION_STATE_FILE))
-                    logger.info(f"Saved session state to {settings.SESSION_STATE_FILE}")
-                except Exception as save_err:
-                    logger.warning(f"Could not save storage state: {save_err}")
+            current_url = page.url.rstrip("/")
+            if "inventory" in current_url.lower() or "dashboard" in current_url.lower():
+                logger.info("Login verified with full seller permissions. Updating storage_state...")
+                if settings.SESSION_STATE_FILE:
+                    try:
+                        settings.SESSION_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                        await context.storage_state(path=str(settings.SESSION_STATE_FILE))
+                        logger.info(f"Saved verified seller session state to {settings.SESSION_STATE_FILE}")
+                    except Exception as save_err:
+                        logger.warning(f"Could not save storage state: {save_err}")
+                return True
+            else:
+                logger.warning("Not inside dashboard/inventory. Skipping storage_state save.")
+                return False
         else:
             logger.error("Login failed.")
         return success
