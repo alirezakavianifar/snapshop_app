@@ -4,9 +4,15 @@ import logging
 from pathlib import Path
 from typing import Optional, AsyncGenerator
 from contextlib import asynccontextmanager
-from playwright.async_api import async_playwright, BrowserContext, Page, Playwright
 
 logger = logging.getLogger(__name__)
+
+try:
+    from playwright.async_api import async_playwright, BrowserContext, Page, Playwright
+    HAS_PLAYWRIGHT = True
+except ImportError:
+    HAS_PLAYWRIGHT = False
+    BrowserContext = Page = Playwright = None
 
 
 async def random_delay(min_sec: float = 0.5, max_sec: float = 2.0):
@@ -14,8 +20,10 @@ async def random_delay(min_sec: float = 0.5, max_sec: float = 2.0):
     await asyncio.sleep(random.uniform(min_sec, max_sec))
 
 
-async def smooth_scroll_down(page: Page, step: int = 400, pause: float = 0.3):
+async def smooth_scroll_down(page, step: int = 400, pause: float = 0.3):
     """Smooth human-like scroll down to trigger lazy loading."""
+    if not page:
+        return
     current_scroll = 0
     total_height = await page.evaluate("document.body.scrollHeight")
     while current_scroll < total_height:
@@ -33,10 +41,14 @@ async def get_browser_context(
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     ),
-) -> AsyncGenerator[BrowserContext, None]:
+):
     """
     Async context manager for Playwright BrowserContext with session persistence and stealth parameters.
     """
+    if not HAS_PLAYWRIGHT:
+        logger.error("Playwright package is not installed. Install via `pip install playwright`.")
+        raise RuntimeError("Playwright is required for browser context execution.")
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(
             headless=headless,

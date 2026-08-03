@@ -1,0 +1,15 @@
+[Unit]
+Description=SnappShop Smart Price Bot Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/snapshop_app
+ExecStart=/opt/snapshop_app/.venv/bin/python main.py
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

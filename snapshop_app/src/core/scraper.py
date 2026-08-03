@@ -1,18 +1,18 @@
 import os
 import re
 import glob
+import asyncio
 import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import pandas as pd
-from playwright.async_api import BrowserContext, Page
 from src.config.settings import settings
 from src.core.browser import random_delay, smooth_scroll_down
 
 logger = logging.getLogger(__name__)
 
 
-async def download_inventory_excel(context: BrowserContext, download_dir: Path) -> Optional[Path]:
+async def download_inventory_excel(context, download_dir: Path) -> Optional[Path]:
     """
     Download current inventory Excel file from SnappShop seller panel.
     """
@@ -47,7 +47,7 @@ async def download_inventory_excel(context: BrowserContext, download_dir: Path) 
         await page.close()
 
 
-async def upload_inventory_excel(context: BrowserContext, file_path: Path) -> bool:
+async def upload_inventory_excel(context, file_path: Path) -> bool:
     """
     Upload updated inventory Excel file (01.xlsx) to SnappShop seller panel.
     """
@@ -71,7 +71,7 @@ async def upload_inventory_excel(context: BrowserContext, file_path: Path) -> bo
 
 
 async def scrape_storefront_buybox(
-    context: BrowserContext,
+    context,
     store_url: str,
     company_name: str
 ) -> List[Dict[str, Any]]:

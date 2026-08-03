@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from typing import Callable, Optional, Awaitable
-from playwright.async_api import BrowserContext, Page
 from src.config.settings import settings
 from src.core.browser import random_delay
 
@@ -10,7 +9,7 @@ logger = logging.getLogger(__name__)
 OTPCallback = Callable[[str], Awaitable[str]]
 
 
-async def check_is_logged_in(page: Page) -> bool:
+async def check_is_logged_in(page) -> bool:
     """Verify if currently logged into seller panel."""
     try:
         await page.goto("https://seller.snappshop.ir/inventory/bulk-update", timeout=15000)
@@ -25,7 +24,7 @@ async def check_is_logged_in(page: Page) -> bool:
 
 
 async def login_to_seller_panel(
-    context: BrowserContext,
+    context,
     phone_number: str,
     password: Optional[str] = None,
     otp_callback: Optional[OTPCallback] = None,
