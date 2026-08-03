@@ -9,25 +9,26 @@ logger = logging.getLogger(__name__)
 OTPCallback = Callable[[str], Awaitable[str]]
 
 
+async def check_is_logged_in_passive(page) -> bool:
+    """Passively check if page navigated to authenticated route without triggering page.goto navigation."""
+    try:
+        current_url = page.url.rstrip("/")
+        if "inventory" in current_url.lower() or "dashboard" in current_url.lower():
+            return True
+        return False
+    except Exception:
+        return False
+
+
 async def check_is_logged_in(page) -> bool:
     """Verify if currently logged into seller panel."""
     try:
         current_url = page.url.rstrip("/")
-        # Fast-check if current page is unauthenticated landing/login/otp page
-        if (
-            current_url == "https://seller.snappshop.ir"
-            or any(sub in current_url.lower() for sub in ["login", "otp", "auth", "verify"])
-            or await page.query_selector(
-                "#phone-number-input, input[name='cellphone'], input[name='mobile'], input[name='username'], input[type='tel'], input[autocomplete='one-time-code'], input[name='code']"
-            )
-        ):
-            return False
-
         # Fast-check if already on authenticated route
         if "inventory" in current_url.lower() or "dashboard" in current_url.lower():
             return True
 
-        # Otherwise navigate to bulk-update to verify session
+        # Navigate to bulk-update to verify session
         await page.goto("https://seller.snappshop.ir/inventory/bulk-update", timeout=15000)
         await page.wait_for_load_state("networkidle", timeout=10000)
         current_url = page.url.rstrip("/")
@@ -41,7 +42,10 @@ async def check_is_logged_in(page) -> bool:
         ):
             return False
 
-        return True
+        if "inventory" in current_url.lower() or "dashboard" in current_url.lower():
+            return True
+
+        return False
     except Exception as e:
         logger.warning(f"Session check error: {e}")
         return False
@@ -59,12 +63,13 @@ async def login_to_seller_panel(
     """
     page = context.pages[0] if context.pages else await context.new_page()
     try:
-        await page.goto("https://seller.snappshop.ir/", timeout=20000)
-        await random_delay(1, 2)
-
         if await check_is_logged_in(page):
             logger.info("Existing session is valid. Skipping login.")
             return True
+
+        logger.info("Session expired or missing. Navigating to seller login page...")
+        await page.goto("https://seller.snappshop.ir/", timeout=20000)
+        await random_delay(1, 2)
 
         phone = phone_number or settings.SNAPSHOP_PHONE_NUMBER or "09207051391"
         logger.info(f"Initiating login for phone: {phone}")
@@ -82,7 +87,7 @@ async def login_to_seller_panel(
         )
         if submit_btn:
             await submit_btn.click()
-        await random_delay(1, 2)
+        await random_delay(2, 3)
 
         pwd = password or settings.SNAPSHOP_PASSWORD or "Roya9084@"
         if pwd:
@@ -104,26 +109,30 @@ async def login_to_seller_panel(
             except Exception as pass_err:
                 logger.warning(f"Could not auto-fill password: {pass_err}")
 
-        if not await check_is_logged_in(page):
-            # Fallback to OTP entry
-            logger.info("OTP verification required. Waiting 2 minutes (120s) for OTP completion...")
-            if otp_callback:
-                otp_code = await otp_callback(phone_number)
-                if otp_code:
-                    logger.info("Submitting received OTP code...")
-                    otp_inputs = await page.query_selector_all("input[type='text'], input[type='number']")
-                    if len(otp_inputs) == 1:
-                        await otp_inputs[0].fill(otp_code)
-                    elif len(otp_inputs) >= len(otp_code):
-                        for i, char in enumerate(otp_code):
-                            await otp_inputs[i].fill(char)
-                    await random_delay(2, 4)
-            else:
-                # Wait 2 minutes checking for login every 5 seconds
-                for _ in range(0, 120, 5):
-                    await asyncio.sleep(5)
-                    if await check_is_logged_in(page):
-                        break
+        if await check_is_logged_in_passive(page):
+            logger.info("✅ Login successful! Session restored.")
+            return True
+
+        # Fallback to OTP entry
+        logger.info("OTP verification required. Waiting 2 minutes (120s) for OTP completion...")
+        if otp_callback:
+            otp_code = await otp_callback(phone_number)
+            if otp_code:
+                logger.info("Submitting received OTP code...")
+                otp_inputs = await page.query_selector_all("input[type='text'], input[type='number']")
+                if len(otp_inputs) == 1:
+                    await otp_inputs[0].fill(otp_code)
+                elif len(otp_inputs) >= len(otp_code):
+                    for i, char in enumerate(otp_code):
+                        await otp_inputs[i].fill(char)
+                await random_delay(2, 4)
+        else:
+            # Wait 2 minutes passively checking URL every 2 seconds without page.goto
+            for _ in range(60):
+                await asyncio.sleep(2)
+                if await check_is_logged_in_passive(page):
+                    logger.info("Detected successful OTP login redirect!")
+                    break
 
         success = await check_is_logged_in(page)
         if success:
