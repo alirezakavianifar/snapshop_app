@@ -47,7 +47,7 @@ class SnappShopAppGUI:
 
     def _build_ui(self):
         # Header Bar
-        header_frame = tk.Frame(self.root, bg=self.CARD_BG, pady=12, px=15)
+        header_frame = tk.Frame(self.root, bg=self.CARD_BG, pady=12, padx=15)
         header_frame.pack(fill="x", padx=15, pady=10)
 
         title_label = tk.Label(
