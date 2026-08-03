@@ -68,6 +68,15 @@ class SnappShopAppGUI:
         )
         self.status_label.pack(side="right")
 
+        self.session_label = tk.Label(
+            header_frame,
+            text=self._get_session_expiration_info(),
+            font=("Segoe UI", 9, "italic"),
+            fg="#a6adc8",
+            bg=self.CARD_BG,
+        )
+        self.session_label.pack(side="right", padx=15)
+
         # Main Layout (Notebook Tabs)
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill="both", expand=True, padx=15, pady=5)
@@ -419,6 +428,36 @@ CHECK_INTERVAL_MINUTES="{self.vars['interval_var'].get()}"
             self.log_menu.tk_popup(event.x_root, event.y_root)
 
         self.log_area.bind("<Button-3>", popup)
+
+    def _get_session_expiration_info(self) -> str:
+        session_file = BASE_DIR / "downloads" / "storage_state.json"
+        if not session_file.exists():
+            return "🔑 Session: Not Set"
+        try:
+            import json, base64
+            from datetime import datetime, timezone
+            with open(session_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for c in data.get("cookies", []):
+                if c.get("name") == "access-token":
+                    exp = c.get("expires", 0)
+                    val = c.get("value", "")
+                    if val.count(".") == 2:
+                        payload_b64 = val.split(".")[1]
+                        payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
+                        payload = json.loads(base64.b64decode(payload_b64).decode("utf-8"))
+                        exp = payload.get("exp", exp)
+                    if exp > 0:
+                        dt = datetime.fromtimestamp(exp, tz=timezone.utc)
+                        now = datetime.now(timezone.utc)
+                        days = (dt - now).days
+                        if days >= 0:
+                            return f"🔑 Session Valid: {dt.strftime('%Y-%m-%d %H:%M UTC')} ({days}d left)"
+                        else:
+                            return f"⚠️ Session Expired on {dt.strftime('%Y-%m-%d')}"
+        except Exception:
+            pass
+        return "🔑 Session: Active"
 
 
 def main():
