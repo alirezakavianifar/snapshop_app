@@ -1,0 +1,16 @@
+pandas
+tqdm
+selenium
+requests
+beautifulsoup4
+xlrd
+xlwings
+psutil
+openpyxl
+lxml
+schedule
+watchdog
+jdatetime
+customtkinter
+pytz
+-e .

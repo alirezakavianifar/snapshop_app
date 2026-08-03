@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>&#x631;&#x627;&#x647;&#x646;&#x645;&#x627;&#x6cc; &#x627;&#x67e;&#x644;&#x6cc;&#x6a9;&#x6cc;&#x634;&#x646; SnapShop Scheduler</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="راهنمای-اپلیکیشن-snapshop-scheduler">راهنمای اپلیکیشن SnapShop Scheduler</h1>
+<p><img src="file:///e:\projects\snapshop_app\snapshop_app\app_screenshot.png" alt="رابط کاربری SnapShop Scheduler"></p>
+<h2 id="این-اپ-چه-کاری-انجام-میدهد">این اپ چه کاری انجام می‌دهد؟</h2>
+<p>این برنامه یک <strong>زمان‌بند خودکار برای مدیریت قیمت و موجودی</strong> فروشنده در فروشگاه اینترنتی <strong>اسنپ‌شاپ (SnappShop)</strong> است. با ورود به پنل فروشنده، داده‌های محصولات را استخراج می‌کند، قیمت‌ها را بر اساس قوانین رقابتی (Buybox) تنظیم می‌کند و فایل به‌روزرسانی را دوباره در پنل آپلود می‌کند.</p>
+<h2 id="قابلیتهای-اصلی">قابلیت‌های اصلی</h2>
+<ol>
+<li>
+<p><strong>ورود خودکار به پنل فروشنده</strong><br>
+با شماره موبایل و رمز عبور (یا کد تأیید) وارد <code>seller.snappshop.ir</code> می‌شود.</p>
+</li>
+<li>
+<p><strong>دانلود فایل موجودی</strong><br>
+از بخش به‌روزرسانی گروهی (<code>bulk-update</code>) فایل اکسل محصولات را دانلود می‌کند.</p>
+</li>
+<li>
+<p><strong>اسکرپ Buybox (اختیاری)</strong><br>
+صفحه فروشنده در اسنپ‌شاپ را می‌گردد، قیمت فروشنده دوم و وضعیت بای‌باکس را جمع‌آوری می‌کند تا بتوان قیمت رقابتی تعیین کرد.</p>
+</li>
+<li>
+<p><strong>محاسبه و تنظیم قیمت تخفیف</strong><br>
+برای محصولاتی که فعال‌اند و تخفیف دارند، قیمت بعد از تخفیف را طوری تنظیم می‌کند که نسبت به بای‌باکس رقابتی بماند (مثلاً کمی پایین‌تر از قیمت رقیب).</p>
+</li>
+<li>
+<p><strong>زمان‌بندی دوره‌ای</strong><br>
+همین فرایند را در بازه زمانی مشخص (مثلاً هر ۲۰ دقیقه) به‌صورت خودکار تکرار می‌کند.</p>
+</li>
+<li>
+<p><strong>لاگ زنده</strong><br>
+وضعیت اجرا و خطاها در باکس پایین پنجره نمایش داده می‌شود.</p>
+</li>
+</ol>
+<h2 id="فیلدهای-رابط-کاربری">فیلدهای رابط کاربری</h2>
+<table>
+<thead>
+<tr>
+<th>فیلد</th>
+<th>توضیح</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Phone Number</strong></td>
+<td>شماره موبایل حساب فروشنده اسنپ‌شاپ</td>
+</tr>
+<tr>
+<td><strong>Password</strong></td>
+<td>رمز عبور حساب (در صورت غیرفعال کردن «Use password»، منتظر ورود دستی کد می‌ماند)</td>
+</tr>
+<tr>
+<td><strong>Minutes Interval</strong></td>
+<td>فاصله زمانی تکرار اسکرپ (به دقیقه)</td>
+</tr>
+<tr>
+<td><strong>Seller Store URL</strong></td>
+<td>آدرس صفحه فروشنده در اسنپ‌شاپ</td>
+</tr>
+<tr>
+<td><strong>Company Name</strong></td>
+<td>نام فروشگاه (مثلاً «چادوک») برای تشخیص فروشنده در بای‌باکس</td>
+</tr>
+<tr>
+<td><strong>Skip Buybox scraping</strong></td>
+<td>در صورت فعال بودن، مرحله جمع‌آوری قیمت بای‌باکس رد می‌شود</td>
+</tr>
+</tbody>
+</table>
+<h2 id="جریان-کار-بهصورت-خلاصه">جریان کار به‌صورت خلاصه</h2>
+<pre><code class="language-text">شروع → ورود به پنل فروشنده
+     → دانلود اکسل موجودی
+     → (اختیاری) اسکرپ قیمت بای‌باکس از صفحه عمومی فروشنده
+     → فیلتر محصولات فعال دارای تخفیف
+     → به‌روزرسانی تاریخ/ساعت شروع تخفیف
+     → محاسبه قیمت رقابتی
+     → ساخت فایل 01.xlsx و آپلود در پنل
+     → تکرار طبق بازه زمانی
+</code></pre>
+<h2 id="خروجی">خروجی</h2>
+<p>نتیجه نهایی معمولاً فایل اکسل <code>01.xlsx</code> در پوشه <code>downloads</code> است که سپس به‌صورت خودکار در بخش به‌روزرسانی گروهی پنل فروشنده آپلود می‌شود.</p>
+
+            
+            
+        </body>
+        </html>
