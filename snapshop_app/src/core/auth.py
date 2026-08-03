@@ -14,7 +14,7 @@ async def check_is_logged_in(page) -> bool:
     try:
         await page.goto("https://seller.snappshop.ir/inventory/bulk-update", timeout=15000)
         await page.wait_for_load_state("networkidle", timeout=10000)
-        # Check if redirected to login page
+        # Check if redirected to login page or phone number input
         if "login" in page.url or await page.query_selector("#phone-number-input"):
             return False
         return True
@@ -31,6 +31,7 @@ async def login_to_seller_panel(
 ) -> bool:
     """
     Log in to seller panel using password or OTP prompt callback.
+    Saves storage state upon successful login.
     """
     page = await context.new_page()
     try:
@@ -61,7 +62,6 @@ async def login_to_seller_panel(
                 otp_code = await otp_callback(phone_number)
                 if otp_code:
                     logger.info("Submitting received OTP code...")
-                    # Assuming 6 individual inputs or single input box for OTP
                     otp_inputs = await page.query_selector_all("input[type='text'], input[type='number']")
                     if len(otp_inputs) == 1:
                         await otp_inputs[0].fill(otp_code)
@@ -73,6 +73,13 @@ async def login_to_seller_panel(
         success = await check_is_logged_in(page)
         if success:
             logger.info("Login successful. Session updated.")
+            if settings.SESSION_STATE_FILE:
+                try:
+                    settings.SESSION_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    await context.storage_state(path=str(settings.SESSION_STATE_FILE))
+                    logger.info(f"Saved session state to {settings.SESSION_STATE_FILE}")
+                except Exception as save_err:
+                    logger.warning(f"Could not save storage state: {save_err}")
         else:
             logger.error("Login failed.")
         return success
@@ -81,3 +88,4 @@ async def login_to_seller_panel(
         return False
     finally:
         await page.close()
+

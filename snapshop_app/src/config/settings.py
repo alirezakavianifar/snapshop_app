@@ -19,7 +19,7 @@ class Settings:
     SNAPSHOP_PHONE_NUMBER: str = os.getenv("SNAPSHOP_PHONE_NUMBER", "")
     SNAPSHOP_PASSWORD: Optional[str] = os.getenv("SNAPSHOP_PASSWORD", None)
     SNAPSHOP_STORE_URL: str = os.getenv(
-        "SNAPSHOP_STORE_URL", "https://snappshop.ir/seller/g3aPbQ"
+        "SNAPSHOP_STORE_URL", "https://snappshop.ir/seller/qP4j1w"
     )
     SNAPSHOP_COMPANY_NAME: str = os.getenv("SNAPSHOP_COMPANY_NAME", "چادوک")
 
