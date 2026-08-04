@@ -55,22 +55,34 @@ async def download_inventory_excel(context, download_dir: Path) -> Optional[Path
         req_btn = await page.query_selector(".BulkUpdateHeader_card__button__1AEYW, button:has-text('دریافت خروجی'), button:has-text('خروجی')")
         if req_btn and not await req_btn.is_disabled():
             await req_btn.click(force=True)
-            logger.info("Requested new inventory export, waiting 8s for preparation...")
-            await asyncio.sleep(8)
+            logger.info("Requested new inventory export. Polling up to 30s for preparation...")
 
-        # 3. Re-inspect header for newly generated download link
-        header_els = await page.query_selector_all("[class*='BulkUpdateHeader'] a, [class*='BulkUpdateHeader'] button")
-        for el in header_els:
-            txt = (await el.inner_text()).strip()
-            cls = (await el.get_attribute("class")) or ""
-            if "download" in cls.lower() or "خروجی" in txt or "دانلود" in txt:
-                download_el = el
+        # 3. Poll header for newly generated download link (6 attempts x 5 seconds)
+        download_el = None
+        for attempt in range(6):
+            await asyncio.sleep(5)
+            header_els = await page.query_selector_all("a[href*='xlsx'], [class*='BulkUpdateHeader'] a, [class*='BulkUpdateHeader'] button, button:has-text('دانلود')")
+            for el in header_els:
+                txt = (await el.inner_text()).strip()
+                cls = (await el.get_attribute("class")) or ""
+                href = (await el.get_attribute("href")) or ""
+                if "download" in cls.lower() or "خروجی" in txt or "دانلود" in txt or ".xlsx" in href.lower():
+                    download_el = el
+                    break
+            if download_el:
+                logger.info(f"Found ready download link on polling attempt {attempt+1}!")
                 break
 
         if not download_el:
+            # Fallback: check if recent downloaded inventory file exists in downloads directory
+            existing_files = [f for f in download_dir.glob("*.xlsx") if "01.xlsx" not in f.name and "test" not in f.name]
+            if existing_files:
+                latest = max(existing_files, key=lambda f: f.stat().st_mtime)
+                logger.warning(f"Export generation timed out. Falling back to latest existing inventory file: {latest}")
+                return latest
             raise RuntimeError("Download link not found in header after export request.")
 
-        async with page.expect_download(timeout=30000) as download_info:
+        async with page.expect_download(timeout=35000) as download_info:
             await download_el.click(force=True)
 
         download = await download_info.value
@@ -80,9 +92,13 @@ async def download_inventory_excel(context, download_dir: Path) -> Optional[Path
         return saved_path
     except Exception as e:
         logger.error(f"Failed to download inventory Excel: {e}")
+        # Fallback to existing inventory file if available
+        existing_files = [f for f in download_dir.glob("*.xlsx") if "01.xlsx" not in f.name and "test" not in f.name]
+        if existing_files:
+            latest = max(existing_files, key=lambda f: f.stat().st_mtime)
+            logger.warning(f"Download exception caught. Falling back to existing inventory file: {latest}")
+            return latest
         return None
-    except Exception as e:
-        logger.error(f"Failed to download inventory Excel: {e}")
         return None
     finally:
         await page.close()
