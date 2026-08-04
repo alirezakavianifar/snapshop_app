@@ -31,11 +31,9 @@ def calculate_product_price(
     if max_price is None or max_price <= 0:
         max_price = int(current_price * 1.5)  # Ceiling protection
 
-    # Case 1: No competitor exists -> Step price up towards max_price if desired
+    # Case 1: No competitor exists -> Maintain current price
     if competitor_price is None or competitor_price <= 0:
-        new_price = min(max_price, current_price + increase_step)
-        reason = "No competitor: incrementing price up to max_price"
-        return new_price, reason
+        return current_price, "No competitor: maintaining current price"
 
     # Case 2: Competitor is cheaper than our current price -> Reduce price by decrease_step
     if competitor_price < current_price:
@@ -65,6 +63,21 @@ def calculate_product_price(
     return current_price, "No price change required"
 
 
+def clean_title_key(title: str) -> str:
+    """
+    Clean and normalize product titles for robust matching between Excel catalog and Web Scraper.
+    Strips 'وزن:', 'گارانتی سلامت فیزیکی کالا 1 ماه', ZWNJ, and extra spaces.
+    """
+    if not title:
+        return ""
+    from src.core.scraper import normalize_persian_text
+    t = normalize_persian_text(title)
+    t = re.sub(r"وزن\s*:\s*", "", t)
+    t = re.sub(r"گارانتی\s+سلامت\s+فیزیکی\s+کالا\s+\d+\s+ماه", "", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
 def process_inventory_and_generate_update(
     excel_path: Path,
     competitors_data: List[Dict[str, Any]],
@@ -72,8 +85,8 @@ def process_inventory_and_generate_update(
     db_manager: DatabaseManager,
 ) -> Dict[str, Any]:
     """
-    Process inventory Excel file, apply competitor pricing rules, check 24h skip logic,
-    and generate 01.xlsx output file for upload.
+    Read inventory Excel, apply competitor pricing strategy & Telegram custom rules,
+    and save updated 01.xlsx file ready for SnappShop seller panel upload.
     """
     logger.info(f"Reading downloaded inventory Excel: {excel_path}")
     df = pd.read_excel(excel_path)
@@ -94,8 +107,12 @@ def process_inventory_and_generate_update(
     if "زمان شروع تخفیف" in df.columns:
         df["زمان شروع تخفیف"] = current_time_str
 
-    # Map competitor prices to DataFrame
-    comp_map = {item["title"]: item for item in competitors_data}
+    # Build normalized competitor map from scraped data
+    comp_map = {}
+    for item in competitors_data:
+        t_key = clean_title_key(item.get("title", ""))
+        if t_key:
+            comp_map[t_key] = item
 
     updated_count = 0
     skipped_count = 0
@@ -138,7 +155,8 @@ def process_inventory_and_generate_update(
             else (db_rules.get("decrease_step") or settings.DEFAULT_DECREASE_STEP)
         )
 
-        comp_info = comp_map.get(title, {})
+        norm_title = clean_title_key(title)
+        comp_info = comp_map.get(norm_title, {})
         
         # Read direct Buybox information from Inventory Excel row
         excel_buybox_price = (
@@ -152,12 +170,17 @@ def process_inventory_and_generate_update(
             else True
         )
 
-        if excel_buybox_price and excel_buybox_price > 0:
+        # Scraped web competitor price overrides static excel export price if available
+        scraped_comp_price = comp_info.get("second_price", None)
+        if scraped_comp_price and scraped_comp_price > 0:
+            comp_price = scraped_comp_price
+            has_comp = True
+        elif excel_buybox_price and excel_buybox_price > 0:
             comp_price = excel_buybox_price
             has_comp = True
         else:
-            has_comp = comp_info.get("has_competitor", False)
-            comp_price = comp_info.get("second_price", None)
+            has_comp = False
+            comp_price = None
 
         # Check 24-hour rule for competitor-less items
         if not db_manager.should_check_product(title):
