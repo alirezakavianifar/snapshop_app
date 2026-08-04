@@ -515,15 +515,26 @@ CHECK_INTERVAL_MINUTES="{self.vars['interval_var'].get()}"
             from datetime import datetime, timezone
             with open(session_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            for c in data.get("cookies", []):
+            cookies = data.get("cookies", [])
+            if not cookies:
+                return "🔑 Session: Not Set"
+
+            for c in cookies:
                 if c.get("name") == "access-token":
                     exp = c.get("expires", 0)
                     val = c.get("value", "")
+                    scopes = []
                     if val.count(".") == 2:
                         payload_b64 = val.split(".")[1]
                         payload_b64 += "=" * ((4 - len(payload_b64) % 4) % 4)
                         payload = json.loads(base64.b64decode(payload_b64).decode("utf-8"))
                         exp = payload.get("exp", exp)
+                        scopes = payload.get("scopes", [])
+
+                    # Check if token is a temporary pre-login OTP token
+                    if "role:pre_login" in scopes or "pre_login" in str(scopes):
+                        return "⚠️ Session: Pending OTP Login"
+
                     if exp > 0:
                         dt = datetime.fromtimestamp(exp, tz=timezone.utc)
                         now = datetime.now(timezone.utc)
@@ -534,7 +545,7 @@ CHECK_INTERVAL_MINUTES="{self.vars['interval_var'].get()}"
                             return f"⚠️ Session Expired on {dt.strftime('%Y-%m-%d')}"
         except Exception:
             pass
-        return "🔑 Session: Active"
+        return "🔑 Session: Not Set"
 
 
 def main():
