@@ -8,7 +8,11 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 
 # Ensure project root is in sys.path
-BASE_DIR = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    BASE_DIR = Path(sys.executable).resolve().parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent
+
 sys.path.insert(0, str(BASE_DIR))
 
 from src.config.settings import settings
