@@ -86,6 +86,8 @@ async def download_inventory_excel(context, download_dir: Path) -> Optional[Path
             await download_el.click(force=True)
 
         download = await download_info.value
+        # Guarantee 100% download stream completion from Chromium before saving
+        await download.path()
         saved_path = download_dir / download.suggested_filename
         await download.save_as(str(saved_path))
         logger.info(f"Downloaded inventory Excel: {saved_path}")
