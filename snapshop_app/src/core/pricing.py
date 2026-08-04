@@ -139,8 +139,25 @@ def process_inventory_and_generate_update(
         )
 
         comp_info = comp_map.get(title, {})
-        has_comp = comp_info.get("has_competitor", False)
-        comp_price = comp_info.get("second_price", None)
+        
+        # Read direct Buybox information from Inventory Excel row
+        excel_buybox_price = (
+            int(row["قیمت بای باکس"])
+            if "قیمت بای باکس" in df.columns and pd.notna(row["قیمت بای باکس"]) and row["قیمت بای باکس"] > 0
+            else None
+        )
+        is_buybox_winner = (
+            str(row["برنده بای باکس"]).strip() == "بله"
+            if "برنده بای باکس" in df.columns and pd.notna(row["برنده بای باکس"])
+            else True
+        )
+
+        if excel_buybox_price and excel_buybox_price > 0:
+            comp_price = excel_buybox_price
+            has_comp = True
+        else:
+            has_comp = comp_info.get("has_competitor", False)
+            comp_price = comp_info.get("second_price", None)
 
         # Check 24-hour rule for competitor-less items
         if not db_manager.should_check_product(title):
@@ -148,14 +165,33 @@ def process_inventory_and_generate_update(
             new_prices.append(current_p)
             continue
 
-        calculated_p, reason = calculate_product_price(
-            current_price=current_p,
-            competitor_price=comp_price,
-            min_price=min_p,
-            max_price=max_p,
-            increase_step=inc_step,
-            decrease_step=dec_step,
-        )
+        # Core Buybox Winner Strategy Logic
+        if has_comp and comp_price and comp_price > 0:
+            if not is_buybox_winner:
+                # We are NOT winning the Buybox -> Undercut competitor to WIN Buybox!
+                target_p = comp_price - dec_step
+                floor_min = min_p if (min_p and min_p > 0) else int(current_p * 0.7)
+                calculated_p = max(target_p, floor_min)
+                reason = f"Not Buybox winner: undercutting competitor ({comp_price:,}) to win Buybox"
+            else:
+                # We ARE the Buybox winner -> Step price up towards competitor if higher to maximize profit
+                calculated_p, reason = calculate_product_price(
+                    current_price=current_p,
+                    competitor_price=comp_price,
+                    min_price=min_p,
+                    max_price=max_p,
+                    increase_step=inc_step,
+                    decrease_step=dec_step,
+                )
+        else:
+            calculated_p, reason = calculate_product_price(
+                current_price=current_p,
+                competitor_price=comp_price,
+                min_price=min_p,
+                max_price=max_p,
+                increase_step=inc_step,
+                decrease_step=dec_step,
+            )
 
         db_manager.update_product_state(
             product_title=title,
