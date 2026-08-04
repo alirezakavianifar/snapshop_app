@@ -121,6 +121,20 @@ async def set_interval_command(update: Update, context: ContextTypes.DEFAULT_TYP
     )
 
 
+def parse_int_value(val) -> Optional[int]:
+    if val is None or pd.isna(val):
+        return None
+    s = str(val).strip()
+    if not s:
+        return None
+    s = normalize_persian_text(s)
+    s = s.replace(",", "").replace("،", "").replace(" ", "").replace("_", "")
+    try:
+        return int(float(s))
+    except (ValueError, TypeError):
+        return None
+
+
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Receive, parse, and store product settings from uploaded Excel/CSV files."""
     document = update.message.document
@@ -159,15 +173,15 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if any(k in norm_c for k in ["عنوان", "title", "product", "کالا", "نام"]):
                 if not title_col:
                     title_col = col
-            elif any(k in norm_c for k in ["حداقل", "min"]):
+            elif any(k in norm_c for k in ["حداقل", "min", "کف"]):
                 min_col = col
-            elif any(k in norm_c for k in ["حداکثر", "max"]):
+            elif any(k in norm_c for k in ["حداکثر", "max", "سقف"]):
                 max_col = col
-            elif "افزایش" in norm_c or "increase" in norm_c:
+            elif any(k in norm_c for k in ["افزایش", "increase", "گام افزایش"]):
                 inc_col = col
-            elif "کاهش" in norm_c or "decrease" in norm_c:
+            elif any(k in norm_c for k in ["کاهش", "decrease", "گام کاهش"]):
                 dec_col = col
-            elif any(k in norm_c for k in ["قیمت", "price"]):
+            elif any(k in norm_c for k in ["قیمت", "price", "قیمت پایه"]):
                 if not price_col:
                     price_col = col
 
@@ -180,11 +194,11 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not title:
                 continue
 
-            min_p = int(row[min_col]) if min_col and pd.notna(row[min_col]) else None
-            max_p = int(row[max_col]) if max_col and pd.notna(row[max_col]) else None
-            inc_s = int(row[inc_col]) if inc_col and pd.notna(row[inc_col]) else None
-            dec_s = int(row[dec_col]) if dec_col and pd.notna(row[dec_col]) else None
-            last_p = int(row[price_col]) if price_col and pd.notna(row[price_col]) else None
+            min_p = parse_int_value(row[min_col]) if min_col else None
+            max_p = parse_int_value(row[max_col]) if max_col else None
+            inc_s = parse_int_value(row[inc_col]) if inc_col else None
+            dec_s = parse_int_value(row[dec_col]) if dec_col else None
+            last_p = parse_int_value(row[price_col]) if price_col else None
 
             products_list.append({
                 "product_title": title,
@@ -198,12 +212,19 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db_mgr = DatabaseManager(settings.DATABASE_PATH)
         imported_count = db_mgr.bulk_import_product_rules(products_list)
 
+        sample_lines = ""
+        for p in products_list[:5]:
+            min_str = f"{p['min_price']:,}" if p['min_price'] else "پیش‌فرض"
+            max_str = f"{p['max_price']:,}" if p['max_price'] else "پیش‌فرض"
+            sample_lines += f"• `{p['product_title'][:30]}` | حداقل: {min_str} | حداکثر: {max_str}\n"
+
         reply_msg = (
             f"✅ *فایل با موفقیت دریافت و پردازش شد!*\n\n"
             f"📊 **آمار پردازش فایل:**\n"
             f"• نام فایل: `{filename}`\n"
             f"• تعداد کل سطرها: *{len(df)}*\n"
-            f"• قوانین قیمت‌گذاری ثبت‌شده: *{imported_count}*\n\n"
+            f"• قوانین قیمت‌گذاری بروزشده: *{imported_count}*\n\n"
+            f"📋 **نمونه محصولات بروزشده:**\n{sample_lines}\n"
             f"⚙️ **توضیحات:**\n"
             f"تنظیمات جدید در دیتابیس ثبت شدند و در چرخه‌های پایش پیاپی (هر *{settings.CHECK_INTERVAL_MINUTES}* دقیقه) به طور خودکار بر روی فروشگاه اسنپ‌شاپ اعمال خواهند شد."
         )
