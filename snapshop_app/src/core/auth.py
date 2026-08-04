@@ -109,9 +109,7 @@ async def login_to_seller_panel(
                     await random_delay(1.5, 2.5)
 
                     # 2. Resilient Fallback: Click 'ورود' button explicitly with force & JS click if still visible
-                    login_btn = await page.query_selector(
-                        "button[type='submit'], xpath=//button[contains(text(), 'ورود')]"
-                    )
+                    login_btn = await page.query_selector("button[type='submit']") or await page.query_selector("xpath=//button[contains(text(), 'ورود')]")
                     if login_btn and await login_btn.is_visible():
                         logger.info("Clicking 'ورود' submit button directly...")
                         try:
