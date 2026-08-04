@@ -304,17 +304,34 @@ class SnappShopAppGUI:
             )
             entry.pack(side="right", fill="x", expand=True, padx=5)
 
+        btn_frame = tk.Frame(settings_card, bg=self.CARD_BG)
+        btn_frame.pack(pady=15)
+
         btn_save = tk.Button(
-            settings_card,
+            btn_frame,
             text="💾 Save Settings to .env",
             font=("Segoe UI", 10, "bold"),
             bg=self.ACCENT_COLOR,
             fg="#11111b",
             relief="flat",
             pady=6,
+            padx=10,
             command=self.save_settings,
         )
-        btn_save.pack(pady=15)
+        btn_save.pack(side="left", padx=5)
+
+        btn_test_telegram = tk.Button(
+            btn_frame,
+            text="🧪 Test Telegram Connection",
+            font=("Segoe UI", 10, "bold"),
+            bg="#89b4fa",
+            fg="#11111b",
+            relief="flat",
+            pady=6,
+            padx=10,
+            command=self.test_telegram_connection,
+        )
+        btn_test_telegram.pack(side="left", padx=5)
 
     def _load_current_settings(self):
         self.vars["token_var"].set(settings.TELEGRAM_BOT_TOKEN or "")
@@ -360,6 +377,33 @@ HEADLESS="{is_h}"
             messagebox.showinfo("Success", "Settings saved successfully to .env file & reloaded!")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save settings: {e}")
+
+    def test_telegram_connection(self):
+        token = self.vars['token_var'].get()
+        chat_id = self.vars['chat_id_var'].get()
+        proxy = self.vars['proxy_var'].get()
+
+        if not token or not chat_id:
+            messagebox.showerror("Error", "Please enter both Telegram Bot Token and Admin Chat ID!")
+            return
+
+        def _worker():
+            try:
+                import asyncio
+                from src.telegram.notifier import TelegramNotifier
+                notifier = TelegramNotifier(token, chat_id)
+                msg = f"🧪 *تست ارتباط تلگرام با کنترل پنل اسنپ‌شاپ*\n\n"
+                msg += f"✅ ارتباط با موفقیت برقرار شد!\n"
+                if proxy:
+                    msg += f"🌐 پروکسی استفاده شده: `{proxy}`"
+                else:
+                    msg += "🌐 اتصال مستقیم (بدون پروکسی)"
+                asyncio.run(notifier._send_message(msg))
+                self.root.after(0, lambda: messagebox.showinfo("Telegram Test", "✅ Telegram test message sent successfully!"))
+            except Exception as err:
+                self.root.after(0, lambda: messagebox.showerror("Telegram Error", f"❌ Failed to send Telegram message:\n{err}"))
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def run_sync_now(self):
         if self.is_running:
