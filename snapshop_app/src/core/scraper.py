@@ -170,8 +170,31 @@ async def scrape_storefront_buybox(
         for href in product_hrefs:
             try:
                 full_url = href if href.startswith("http") else f"https://snappshop.ir{href}"
-                await page.goto(full_url, timeout=20000)
-                await random_delay(0.5, 1.0)
+                
+                # Rate Limiting & Anti-Ban: Randomized delay between product page loads (1.5 - 3.5s)
+                await random_delay(1.5, 3.5)
+
+                # Retry loop for 429 Too Many Requests rate limiting
+                max_retries = 3
+                for attempt in range(max_retries):
+                    res = await page.goto(full_url, timeout=20000)
+                    
+                    # Detect 429 status code or 'too many requests' message on page
+                    content = await page.content()
+                    is_rate_limited = (
+                        (res and res.status == 429)
+                        or "too many requests" in content.lower()
+                        or "تعداد درخواست" in content
+                    )
+                    
+                    if is_rate_limited:
+                        backoff_sec = (attempt + 1) * 8 + random.uniform(2, 5)
+                        logger.warning(
+                            f"⚠️ 429 Rate limit detected on {href}. Backing off for {backoff_sec:.1f}s (Attempt {attempt+1}/{max_retries})..."
+                        )
+                        await asyncio.sleep(backoff_sec)
+                    else:
+                        break
 
                 title_el = await page.query_selector("h1.text-gray-900")
                 title = await title_el.inner_text() if title_el else ""
