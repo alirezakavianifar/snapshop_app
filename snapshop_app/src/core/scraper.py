@@ -197,45 +197,83 @@ async def scrape_storefront_buybox(
                     else:
                         break
 
-                title_el = await page.query_selector("h1.text-gray-900")
-                title = await title_el.inner_text() if title_el else ""
+                title_el = await page.query_selector("h1")
+                base_title = (await title_el.inner_text()).strip() if title_el else ""
 
-                seller_el = await page.query_selector(".SellerItem_pdp-seller-item__info__1Uljc span")
-                current_seller = await seller_el.inner_text() if seller_el else ""
-                clean_current_seller = normalize_persian_text(current_seller)
-
-                vendor_sections = await page.query_selector_all(".VendorBox_vendor-box-desktop__3HwfD section")
+                # Check for weight variant pills (e.g. 0.19 گرم, 0.22 گرم...)
+                variant_btns = await page.query_selector_all("button:has-text('گرم'), div:has-text('گرم'), [class*='variant'] button")
                 
-                second_seller = ""
-                second_price = None
+                distinct_variants = []
+                seen_weights = set()
+                for btn in variant_btns:
+                    txt = (await btn.inner_text()).strip()
+                    m = re.search(r"\d+\.?\d*\s*گرم", txt)
+                    if m and txt not in seen_weights and len(txt) < 15:
+                        seen_weights.add(txt)
+                        distinct_variants.append((btn, txt))
 
-                is_our_store = (
-                    clean_company in clean_current_seller
-                    or clean_current_seller in clean_company
-                    or "فیگارو" in clean_current_seller
-                    or "figaro" in clean_current_seller.lower()
-                )
+                # If no variant pills exist, process single product page
+                if not distinct_variants:
+                    distinct_variants = [(None, "")]
 
-                if len(vendor_sections) >= 2 and is_our_store:
-                    sec = vendor_sections[1]
-                    s_a = await sec.query_selector("a")
-                    second_seller = await s_a.get_attribute("title") if s_a else ""
+                for v_btn, v_label in distinct_variants:
+                    if v_btn:
+                        try:
+                            await v_btn.click(force=True)
+                            await asyncio.sleep(0.9)
+                        except Exception:
+                            pass
 
-                    p_span = await sec.query_selector(".VendorBox_vendor-box-desktop__vendor-properties__price__KAMSG span")
-                    if p_span:
-                        raw_p = await p_span.inner_text()
-                        cleaned_p = re.sub(r"\D", "", raw_p)
-                        if cleaned_p.isdigit():
-                            second_price = int(cleaned_p)
+                    full_product_title = f"{base_title} {v_label}".strip() if v_label else base_title
 
-                competitor_data.append({
-                    "url": href,
-                    "title": title.strip(),
-                    "current_seller": current_seller.strip(),
-                    "has_competitor": bool(second_seller and second_price),
-                    "second_seller": second_seller.strip(),
-                    "second_price": second_price,
-                })
+                    # Extract all sellers from JS DOM for active variant
+                    sellers = await page.evaluate("""() => {
+                        const cards = Array.from(document.querySelectorAll('div, section')).filter(el => {
+                            const txt = el.innerText || '';
+                            return (txt.includes('خرید از این فروشنده') || txt.includes('تومان')) && txt.includes('عملکرد');
+                        });
+                        return cards.map(c => {
+                            const txt = c.innerText;
+                            const lines = txt.split('\\n').map(l => l.trim()).filter(l => l);
+                            const sellerName = lines[0] || '';
+                            const priceMatch = txt.match(/([\\d,]+)\\s*تومان/);
+                            const price = priceMatch ? parseInt(priceMatch[1].replace(/,/g, '')) : 0;
+                            return { sellerName, price };
+                        }).filter(s => s.price > 0);
+                    }""")
+
+                    comp_seller = ""
+                    comp_price = None
+
+                    if sellers:
+                        winner = sellers[0]
+                        clean_winner = normalize_persian_text(winner["sellerName"])
+                        
+                        is_our_win = (
+                            clean_company in clean_winner
+                            or clean_winner in clean_company
+                            or "فیگارو" in clean_winner
+                            or "figaro" in clean_winner.lower()
+                        )
+
+                        if not is_our_win:
+                            # WE ARE NOT WINNING BUYBOX -> Winner seller IS our competitor!
+                            comp_seller = winner["sellerName"]
+                            comp_price = winner["price"]
+                        elif len(sellers) >= 2:
+                            # WE ARE WINNING BUYBOX -> Second seller IS our competitor!
+                            sec_seller = sellers[1]
+                            comp_seller = sec_seller["sellerName"]
+                            comp_price = sec_seller["price"]
+
+                    competitor_data.append({
+                        "url": href,
+                        "title": full_product_title,
+                        "current_seller": sellers[0]["sellerName"] if sellers else "",
+                        "has_competitor": bool(comp_seller and comp_price),
+                        "second_seller": comp_seller,
+                        "second_price": comp_price,
+                    })
             except Exception as item_err:
                 logger.warning(f"Error scraping product {href}: {item_err}")
 
