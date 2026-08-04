@@ -75,6 +75,12 @@ def build():
         shutil.copy(base_dir / ".env.example", env_dest)
         print(f"Copied .env.example -> {env_dest}")
 
+    state_src = base_dir / "downloads" / "storage_state.json"
+    state_dest = downloads_dir / "storage_state.json"
+    if state_src.exists():
+        shutil.copy(state_src, state_dest)
+        print(f"Copied storage_state.json -> {state_dest}")
+
     exe_path = dist_dir / "SnappShopControlPanel.exe"
     print("\n==================================================")
     print("✅ WINDOWS EXECUTABLE BUILD SUCCESSFUL!")

@@ -33,7 +33,10 @@ async def ensure_valid_session(notifier: Optional[TelegramNotifier] = None) -> b
 
     logger.info("⚠️ Valid seller session not found. Launching interactive session setup...")
     if notifier:
-        await notifier.send_otp_request(settings.SNAPSHOP_PHONE_NUMBER)
+        try:
+            await notifier.send_otp_request(settings.SNAPSHOP_PHONE_NUMBER)
+        except Exception as tel_err:
+            logger.warning(f"Telegram notification warning: {tel_err}")
 
     async with get_browser_context(session_file=session_file, headless=False) as setup_context:
         success = await login_to_seller_panel(
