@@ -24,7 +24,13 @@ class TelegramNotifier:
             logger.info(f"[Telegram Notification Skip]\n{text}")
             return
         try:
-            bot = Bot(token=self.bot_token)
+            proxy_url = getattr(settings, "TELEGRAM_PROXY_URL", None)
+            if proxy_url:
+                from telegram.request import HTTPXRequest
+                bot = Bot(token=self.bot_token, request=HTTPXRequest(proxy_url=proxy_url))
+            else:
+                bot = Bot(token=self.bot_token)
+
             await bot.send_message(
                 chat_id=self.admin_chat_id,
                 text=text,

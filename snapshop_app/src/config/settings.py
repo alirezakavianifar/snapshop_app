@@ -14,6 +14,7 @@ class Settings:
     # Telegram Bot Settings
     TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
     TELEGRAM_ADMIN_CHAT_ID: Optional[str] = os.getenv("TELEGRAM_ADMIN_CHAT_ID", None)
+    TELEGRAM_PROXY_URL: Optional[str] = os.getenv("TELEGRAM_PROXY_URL", None)
 
     # SnappShop Seller Panel Credentials
     SNAPSHOP_PHONE_NUMBER: str = os.getenv("SNAPSHOP_PHONE_NUMBER", "09207051391")

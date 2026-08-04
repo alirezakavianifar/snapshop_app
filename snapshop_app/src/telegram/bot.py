@@ -32,7 +32,13 @@ def create_telegram_bot_app(token: Optional[str] = None):
         logger.warning("TELEGRAM_BOT_TOKEN is not configured. Telegram bot features disabled.")
         return None
 
-    app = ApplicationBuilder().token(bot_token).build()
+    proxy_url = getattr(settings, "TELEGRAM_PROXY_URL", None)
+    if proxy_url:
+        from telegram.request import HTTPXRequest
+        req = HTTPXRequest(proxy_url=proxy_url)
+        app = ApplicationBuilder().token(bot_token).request(req).get_updates_request(req).build()
+    else:
+        app = ApplicationBuilder().token(bot_token).build()
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", start_command))
