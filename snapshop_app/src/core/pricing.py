@@ -165,11 +165,15 @@ def process_inventory_and_generate_update(
             if "قیمت بای باکس" in df.columns and pd.notna(row["قیمت بای باکس"]) and row["قیمت بای باکس"] > 0
             else None
         )
-        is_buybox_winner = (
-            str(row["برنده بای باکس"]).strip() == "بله"
-            if "برنده بای باکس" in df.columns and pd.notna(row["برنده بای باکس"])
-            else True
-        )
+        # Determine Buybox Winner: live scraper storefront status takes priority over Excel export
+        if "live_is_buybox_winner" in comp_info:
+            is_buybox_winner = comp_info["live_is_buybox_winner"]
+        else:
+            is_buybox_winner = (
+                str(row["برنده بای باکس"]).strip() == "بله"
+                if "برنده بای باکس" in df.columns and pd.notna(row["برنده بای باکس"])
+                else True
+            )
 
         # Scraped web competitor price overrides static excel export price if available
         scraped_comp_price = comp_info.get("second_price", None)
@@ -198,15 +202,9 @@ def process_inventory_and_generate_update(
                 calculated_p = max(target_p, floor_min)
                 reason = f"Not Buybox winner: undercutting competitor ({comp_price:,}) to win Buybox"
             else:
-                # We ARE the Buybox winner -> Step price up towards competitor if higher to maximize profit
-                calculated_p, reason = calculate_product_price(
-                    current_price=current_p,
-                    competitor_price=comp_price,
-                    min_price=min_p,
-                    max_price=max_p,
-                    increase_step=inc_step,
-                    decrease_step=dec_step,
-                )
+                # We ARE the Buybox winner -> Maintain current price
+                calculated_p = current_p
+                reason = "Already Buybox winner: maintaining current price"
         else:
             calculated_p, reason = calculate_product_price(
                 current_price=current_p,

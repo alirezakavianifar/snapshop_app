@@ -244,19 +244,54 @@ async def scrape_storefront_buybox(
 
                     full_product_title = f"{base_title} {v_label}".strip() if v_label else base_title
 
-                    # Extract all sellers from JS DOM for active variant
-                    sellers = await page.evaluate("""() => {
+                    # Extract Buybox Winner details using javascript evaluation
+                    buybox_info = await page.evaluate("""() => {
                         const toEng = (s) => s.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[,\\u066C]/g, '');
-                        const sections = Array.from(document.querySelectorAll('section[id*="vendor-item"], [class*="vendor-box"], [class*="VendorBox"]'));
-                        return sections.map(sec => {
-                            const aTag = sec.querySelector('a[title]');
-                            const nameEl = sec.querySelector('a div, .text-bold');
-                            const sellerName = aTag ? aTag.getAttribute('title').trim() : (nameEl ? nameEl.innerText.trim() : '');
+                        const buyboxContainer = document.querySelector('[class*="buy-box-available"], [class*="BuyBoxAvailable"]');
+                        if (!buyboxContainer) return { sellerName: "", price: 0 };
+                        
+                        const sellerNameEl = buyboxContainer.querySelector('[class*="pdp-seller-item__info"] span, [class*="seller-item"] span, a div');
+                        const sellerName = sellerNameEl ? sellerNameEl.innerText.trim() : "";
+                        
+                        const priceEl = buyboxContainer.querySelector('[class*="buy-box-price"] span[class*="text-bold"], [class*="price"] span[class*="text-bold"]');
+                        let price = 0;
+                        if (priceEl) {
+                            const digits = toEng(priceEl.innerText || "").replace(/\\D/g, "");
+                            if (digits) price = parseInt(digits);
+                        }
+                        return { sellerName, price };
+                    }""")
+
+                    # Clean Buybox Winner name
+                    buybox_seller_raw = buybox_info.get("sellerName", "")
+                    buybox_seller = normalize_persian_text(buybox_seller_raw).replace("عملکرد عالی", "").replace("عملکرد خوب", "").replace("فروشگاه برگزیده", "").strip()
+                    buybox_price = buybox_info.get("price", 0)
+
+                    # Determine if Figaro is the active Buybox winner
+                    clean_company = normalize_persian_text(company_name or "گالری فیگارو")
+                    live_is_buybox_winner = (
+                        clean_company in buybox_seller
+                        or buybox_seller in clean_company
+                        or "فیگارو" in buybox_seller
+                        or "figaro" in buybox_seller.lower()
+                    ) if buybox_seller else True # default to True to prevent accidental pricing drops if buybox winner extraction fails completely
+
+                    # Extract list of all raw sellers
+                    raw_sellers = await page.evaluate("""() => {
+                        const toEng = (s) => s.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[,\\u066C]/g, '');
+                        const vendorSections = Array.from(document.querySelectorAll('section, [class*="VendorBox"], [class*="vendor-box"]')).filter(el => {
+                            const text = el.innerText || '';
+                            return text.includes('خرید') && (el.querySelector('[class*="vendor-properties"]') || el.className.includes('bg-gray-50'));
+                        });
+                        
+                        return vendorSections.map(container => {
+                            const nameEl = container.querySelector('[class*="pdp-seller-item__info"] span, [class*="seller-item"] span, a, .text-bold');
+                            const sellerName = nameEl ? nameEl.innerText.trim() : "";
                             
-                            const priceEls = Array.from(sec.querySelectorAll('span'));
+                            const spans = Array.from(container.querySelectorAll('span'));
                             let price = 0;
-                            for (const pel of priceEls) {
-                                const txt = pel.innerText || '';
+                            for (const span of spans) {
+                                const txt = span.innerText || '';
                                 if (txt.includes('تومان') || /[۰-۹\\d]/.test(txt)) {
                                     const digits = toEng(txt).replace(/\\D/g, '');
                                     if (digits.length >= 5) {
@@ -266,38 +301,52 @@ async def scrape_storefront_buybox(
                                 }
                             }
                             return { sellerName, price };
-                        }).filter(s => s.price > 0 && s.sellerName);
+                        });
                     }""")
 
-                    comp_seller = ""
-                    comp_price = None
+                    # De-duplicate and clean sellers list
+                    distinct_sellers = {}
+                    for s in raw_sellers:
+                        name = normalize_persian_text(s.get("sellerName", ""))
+                        name = name.replace("عملکرد عالی", "").replace("عملکرد خوب", "").replace("فروشگاه برگزیده", "").strip()
+                        if not name or "فروشندگان" in name or len(name) < 2:
+                            continue
+                        price = s.get("price", 0)
+                        if price > 0:
+                            if name not in distinct_sellers or price < distinct_sellers[name]:
+                                distinct_sellers[name] = price
 
-                    if sellers:
-                        winner = sellers[0]
-                        clean_winner = normalize_persian_text(winner["sellerName"])
-                        
-                        is_our_win = (
-                            clean_company in clean_winner
-                            or clean_winner in clean_company
-                            or "فیگارو" in clean_winner
-                            or "figaro" in clean_winner.lower()
-                        )
+                    # Check if Figaro is present in the sellers list
+                    is_figaro_in_sellers = False
+                    for name in distinct_sellers.keys():
+                        if (
+                            clean_company in name
+                            or name in clean_company
+                            or "فیگارو" in name
+                            or "figaro" in name.lower()
+                        ):
+                            is_figaro_in_sellers = True
+                            break
 
-                        if not is_our_win:
-                            # WE ARE NOT WINNING BUYBOX -> Winner seller IS our competitor!
-                            comp_seller = winner["sellerName"]
-                            comp_price = winner["price"]
-                        elif len(sellers) >= 2:
-                            # WE ARE WINNING BUYBOX -> Second seller IS our competitor!
-                            sec_seller = sellers[1]
-                            comp_seller = sec_seller["sellerName"]
-                            comp_price = sec_seller["price"]
+                    # Competitor pricing logic: if Figaro is not winning Buybox but is present in sellers list,
+                    # the competitor is the Buybox winner and we want to undercut them!
+                    if not live_is_buybox_winner and is_figaro_in_sellers and buybox_price > 0:
+                        has_competitor = True
+                        comp_seller = buybox_seller
+                        comp_price = buybox_price
+                    else:
+                        has_competitor = False
+                        comp_seller = ""
+                        comp_price = None
 
                     competitor_data.append({
                         "url": href,
                         "title": full_product_title,
-                        "current_seller": sellers[0]["sellerName"] if sellers else "",
-                        "has_competitor": bool(comp_seller and comp_price),
+                        "live_is_buybox_winner": live_is_buybox_winner,
+                        "is_figaro_in_sellers": is_figaro_in_sellers,
+                        "buybox_seller": buybox_seller,
+                        "buybox_price": buybox_price,
+                        "has_competitor": has_competitor,
                         "second_seller": comp_seller,
                         "second_price": comp_price,
                     })
