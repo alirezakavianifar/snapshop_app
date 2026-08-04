@@ -14,6 +14,37 @@ from src.telegram.notifier import TelegramNotifier
 logger = logging.getLogger(__name__)
 
 
+async def ensure_valid_session(notifier: Optional[TelegramNotifier] = None) -> bool:
+    """
+    Verify active seller session. If missing or expired, launch visible interactive browser
+    login to prompt user for SMS OTP code and establish a fresh 7-day session.
+    """
+    session_file = settings.SESSION_STATE_FILE
+    if session_file and session_file.exists():
+        try:
+            from src.core.auth import check_is_logged_in
+            async with get_browser_context(session_file=session_file, headless=True) as check_context:
+                page = check_context.pages[0] if check_context.pages else await check_context.new_page()
+                if await check_is_logged_in(page):
+                    logger.info("✅ Verified active 7-day seller session.")
+                    return True
+        except Exception as check_err:
+            logger.warning(f"Session check exception: {check_err}")
+
+    logger.info("⚠️ Valid seller session not found. Launching interactive session setup...")
+    if notifier:
+        await notifier.send_otp_request(settings.SNAPSHOP_PHONE_NUMBER)
+
+    async with get_browser_context(session_file=session_file, headless=False) as setup_context:
+        success = await login_to_seller_panel(
+            context=setup_context,
+            phone_number=settings.SNAPSHOP_PHONE_NUMBER,
+            password=settings.SNAPSHOP_PASSWORD,
+            otp_callback=notifier.send_otp_request if notifier else None,
+        )
+        return success
+
+
 async def run_sync_cycle(notifier: Optional[TelegramNotifier] = None) -> bool:
     """
     Execute complete end-to-end SnappShop price monitoring & update cycle.
@@ -25,24 +56,18 @@ async def run_sync_cycle(notifier: Optional[TelegramNotifier] = None) -> bool:
     db_manager = DatabaseManager(settings.DATABASE_PATH)
     notifier = notifier or TelegramNotifier()
 
+    # Step 0: Ensure valid session exists before proceeding
+    session_ok = await ensure_valid_session(notifier=notifier)
+    if not session_ok:
+        err = "Failed to establish a valid seller session. Please complete OTP login."
+        logger.error(err)
+        await notifier.send_error_alert(err)
+        return False
+
     try:
         is_headless = os.environ.get("HEADLESS", "true").lower() in ("true", "1", "yes")
         async with get_browser_context(session_file=settings.SESSION_STATE_FILE, headless=is_headless) as context:
-            # Step 1: Authentication & Session Verification
-            authenticated = await login_to_seller_panel(
-                context=context,
-                phone_number=settings.SNAPSHOP_PHONE_NUMBER,
-                password=settings.SNAPSHOP_PASSWORD,
-                otp_callback=notifier.send_otp_request if settings.SNAPSHOP_PHONE_NUMBER else None,
-            )
-
-            if not authenticated:
-                err = "Failed to authenticate with SnappShop seller panel."
-                logger.error(err)
-                await notifier.send_error_alert(err)
-                return False
-
-            # Step 2: Download Inventory Excel
+            # Step 1: Download Inventory Excel
             excel_path = await download_inventory_excel(context, settings.DOWNLOADS_DIR)
             if not excel_path or not excel_path.exists():
                 err = "Failed to download inventory Excel file."
