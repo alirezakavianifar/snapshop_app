@@ -228,18 +228,27 @@ async def scrape_storefront_buybox(
 
                     # Extract all sellers from JS DOM for active variant
                     sellers = await page.evaluate("""() => {
-                        const cards = Array.from(document.querySelectorAll('div, section')).filter(el => {
-                            const txt = el.innerText || '';
-                            return (txt.includes('خرید از این فروشنده') || txt.includes('تومان')) && txt.includes('عملکرد');
-                        });
-                        return cards.map(c => {
-                            const txt = c.innerText;
-                            const lines = txt.split('\\n').map(l => l.trim()).filter(l => l);
-                            const sellerName = lines[0] || '';
-                            const priceMatch = txt.match(/([\\d,]+)\\s*تومان/);
-                            const price = priceMatch ? parseInt(priceMatch[1].replace(/,/g, '')) : 0;
+                        const toEng = (s) => s.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[,\\u066C]/g, '');
+                        const sections = Array.from(document.querySelectorAll('section[id*="vendor-item"], [class*="vendor-box"], [class*="VendorBox"]'));
+                        return sections.map(sec => {
+                            const aTag = sec.querySelector('a[title]');
+                            const nameEl = sec.querySelector('a div, .text-bold');
+                            const sellerName = aTag ? aTag.getAttribute('title').trim() : (nameEl ? nameEl.innerText.trim() : '');
+                            
+                            const priceEls = Array.from(sec.querySelectorAll('span'));
+                            let price = 0;
+                            for (const pel of priceEls) {
+                                const txt = pel.innerText || '';
+                                if (txt.includes('تومان') || /[۰-۹\\d]/.test(txt)) {
+                                    const digits = toEng(txt).replace(/\\D/g, '');
+                                    if (digits.length >= 5) {
+                                        price = parseInt(digits);
+                                        break;
+                                    }
+                                }
+                            }
                             return { sellerName, price };
-                        }).filter(s => s.price > 0);
+                        }).filter(s => s.price > 0 && s.sellerName);
                     }""")
 
                     comp_seller = ""
