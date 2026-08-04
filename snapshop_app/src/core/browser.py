@@ -86,15 +86,12 @@ async def get_browser_context(
         try:
             yield context
         finally:
-            if session_file:
-                try:
-                    session_file.parent.mkdir(parents=True, exist_ok=True)
-                    await context.storage_state(path=str(session_file))
-                    logger.info(f"Saved session state to {session_file}")
-                except Exception as err:
-                    logger.warning(f"Could not save session state on close: {err}")
             try:
                 await context.close()
+            except Exception:
+                pass
+            try:
+                await browser.close()
             except Exception:
                 pass
             try:

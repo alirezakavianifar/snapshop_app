@@ -29,23 +29,25 @@ async def check_is_logged_in(page) -> bool:
             return True
 
         # Navigate to bulk-update to verify session
-        await page.goto("https://seller.snappshop.ir/inventory/bulk-update", timeout=15000)
-        await page.wait_for_load_state("networkidle", timeout=10000)
+        await page.goto("https://seller.snappshop.ir/inventory/bulk-update", timeout=20000)
+        await page.wait_for_load_state("domcontentloaded", timeout=10000)
+        await random_delay(1.5, 3.0)
         current_url = page.url.rstrip("/")
-
-        if (
-            current_url == "https://seller.snappshop.ir"
-            or any(sub in current_url.lower() for sub in ["login", "otp", "auth", "verify"])
-            or await page.query_selector(
-                "#phone-number-input, input[name='cellphone'], input[name='mobile'], input[name='username'], input[type='tel'], input[autocomplete='one-time-code'], input[name='code']"
-            )
-        ):
-            return False
 
         if "inventory" in current_url.lower() or "dashboard" in current_url.lower():
             return True
 
-        return False
+        # Check if page presented a login/phone input form
+        login_input = await page.query_selector(
+            "#phone-number-input, input[name='cellphone'], input[name='mobile'], input[name='username'], input[type='tel']"
+        )
+        if login_input:
+            return False
+
+        if any(sub in current_url.lower() for sub in ["login", "otp", "auth", "verify"]):
+            return False
+
+        return True
     except Exception as e:
         logger.warning(f"Session check error: {e}")
         return False
