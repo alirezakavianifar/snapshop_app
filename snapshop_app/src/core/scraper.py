@@ -189,6 +189,8 @@ async def scrape_storefront_buybox(
         for href in product_hrefs:
             try:
                 full_url = href if href.startswith("http") else f"https://snappshop.ir{href}"
+                if "?" in full_url:
+                    full_url = full_url.split("?")[0]
                 
                 # Rate Limiting & Anti-Ban: Randomized delay between product page loads (1.5 - 3.5s)
                 await random_delay(1.5, 3.5)
