@@ -235,6 +235,7 @@ class SnappShopAppGUI:
         fields = [
             ("Telegram Bot Token:", "token_var"),
             ("Telegram Admin Chat ID:", "chat_id_var"),
+            ("Telegram Proxy URL (Optional):", "proxy_var"),
             ("SnappShop Phone Number:", "phone_var"),
             ("SnappShop Password:", "password_var"),
             ("Target Seller Store URL:", "url_var"),
@@ -286,6 +287,7 @@ class SnappShopAppGUI:
     def _load_current_settings(self):
         self.vars["token_var"].set(settings.TELEGRAM_BOT_TOKEN or "")
         self.vars["chat_id_var"].set(settings.TELEGRAM_ADMIN_CHAT_ID or "")
+        self.vars["proxy_var"].set(getattr(settings, "TELEGRAM_PROXY_URL", "") or "")
         self.vars["phone_var"].set(settings.SNAPSHOP_PHONE_NUMBER or "")
         self.vars["password_var"].set(settings.SNAPSHOP_PASSWORD or "")
         self.vars["url_var"].set(settings.SNAPSHOP_STORE_URL or "")
@@ -298,6 +300,7 @@ class SnappShopAppGUI:
             is_h = "true" if self.headless_var.get() else "false"
             env_content = f"""TELEGRAM_BOT_TOKEN="{self.vars['token_var'].get()}"
 TELEGRAM_ADMIN_CHAT_ID="{self.vars['chat_id_var'].get()}"
+TELEGRAM_PROXY_URL="{self.vars['proxy_var'].get()}"
 SNAPSHOP_PHONE_NUMBER="{self.vars['phone_var'].get()}"
 SNAPSHOP_PASSWORD="{self.vars['password_var'].get()}"
 SNAPSHOP_STORE_URL="{self.vars['url_var'].get()}"
