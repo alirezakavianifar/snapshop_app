@@ -112,21 +112,6 @@ class SnappShopAppGUI:
         )
         self.btn_run_now.pack(side="left", padx=5)
 
-        self.btn_init_session = tk.Button(
-            btn_frame,
-            text="🔑 Login & Setup Session (OTP)",
-            font=("Segoe UI", 10, "bold"),
-            bg="#313244",
-            fg=self.TEXT_COLOR,
-            activebackground=self.WARN_COLOR,
-            activeforeground="#000000",
-            relief="flat",
-            padx=12,
-            pady=6,
-            command=self.run_session_setup,
-        )
-        self.btn_init_session.pack(side="left", padx=5)
-
         self.btn_import_rules = tk.Button(
             btn_frame,
             text="📁 Import Excel/CSV Rules",
@@ -329,27 +314,6 @@ CHECK_INTERVAL_MINUTES="{self.vars['interval_var'].get()}"
                 self.is_running = False
                 self.root.after(0, lambda: self.status_label.config(text="● Status: Idle", fg=self.SUCCESS_COLOR))
                 self.root.after(0, lambda: self.btn_run_now.config(state="normal"))
-
-        threading.Thread(target=task, daemon=True).start()
-
-    def run_session_setup(self):
-        if self.is_running:
-            messagebox.showwarning("Busy", "A task is already running!")
-            return
-
-        self.is_running = True
-        self.status_label.config(text="● Status: Session Setup...", fg=self.WARN_COLOR)
-
-        def task():
-            try:
-                os.environ["HEADLESS"] = "false"
-                from scripts.init_session import run_interactive_login
-                asyncio.run(run_interactive_login())
-            except Exception as err:
-                logging.error(f"Session setup error: {err}")
-            finally:
-                self.is_running = False
-                self.root.after(0, lambda: self.status_label.config(text="● Status: Idle", fg=self.SUCCESS_COLOR))
 
         threading.Thread(target=task, daemon=True).start()
 
