@@ -48,7 +48,7 @@ def build():
     res = subprocess.run(cmd, cwd=str(base_dir))
 
     if res.returncode != 0:
-        print("❌ PyInstaller build failed!")
+        print("[ERROR] PyInstaller build failed!")
         sys.exit(1)
 
     dist_dir = base_dir / "dist" / "SnappShopControlPanel"
