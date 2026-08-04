@@ -131,11 +131,7 @@ async def run_interactive_login():
             return True
         else:
             logger.error("❌ Session check failed: User is not fully inside SnappShop seller panel.")
-            if settings.SESSION_STATE_FILE.exists():
-                try:
-                    settings.SESSION_STATE_FILE.unlink()
-                except Exception:
-                    pass
+            logger.warning("Existing session file preserved without changes.")
             return False
 
 
