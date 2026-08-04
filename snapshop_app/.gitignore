@@ -1,0 +1,11 @@
+# PyInstaller output
+build/
+dist/
+*.spec
+
+# Downloads & State
+downloads/
+.env
+*.log
+__pycache__/
+*.pyc

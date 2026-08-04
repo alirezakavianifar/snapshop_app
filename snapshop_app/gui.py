@@ -310,7 +310,22 @@ HEADLESS="{is_h}"
 """
             with open(env_path, "w", encoding="utf-8") as f:
                 f.write(env_content)
-            messagebox.showinfo("Success", "Settings saved successfully to .env file!")
+
+            # Instantly update runtime settings in memory
+            settings.TELEGRAM_BOT_TOKEN = self.vars['token_var'].get()
+            settings.TELEGRAM_ADMIN_CHAT_ID = self.vars['chat_id_var'].get()
+            settings.TELEGRAM_PROXY_URL = self.vars['proxy_var'].get()
+            settings.SNAPSHOP_PHONE_NUMBER = self.vars['phone_var'].get()
+            settings.SNAPSHOP_PASSWORD = self.vars['password_var'].get()
+            settings.SNAPSHOP_STORE_URL = self.vars['url_var'].get()
+            settings.SNAPSHOP_COMPANY_NAME = self.vars['company_var'].get()
+            try:
+                settings.CHECK_INTERVAL_MINUTES = int(self.vars['interval_var'].get())
+            except ValueError:
+                pass
+            os.environ["HEADLESS"] = is_h
+
+            messagebox.showinfo("Success", "Settings saved successfully to .env file & reloaded!")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save settings: {e}")
 
