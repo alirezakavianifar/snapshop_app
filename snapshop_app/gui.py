@@ -127,6 +127,21 @@ class SnappShopAppGUI:
         )
         self.btn_init_session.pack(side="left", padx=5)
 
+        self.btn_import_rules = tk.Button(
+            btn_frame,
+            text="📁 Import Excel/CSV Rules",
+            font=("Segoe UI", 10, "bold"),
+            bg="#313244",
+            fg=self.TEXT_COLOR,
+            activebackground=self.ACCENT_COLOR,
+            activeforeground="#000000",
+            relief="flat",
+            padx=12,
+            pady=6,
+            command=self.import_excel_rules,
+        )
+        self.btn_import_rules.pack(side="left", padx=5)
+
         self.btn_toggle_scheduler = tk.Button(
             btn_frame,
             text="🔄 Start Continuous Monitor (Every 20m)",
@@ -219,6 +234,8 @@ class SnappShopAppGUI:
         settings_card.pack(fill="both", expand=True, padx=15, pady=15)
 
         fields = [
+            ("Telegram Bot Token:", "token_var"),
+            ("Telegram Admin Chat ID:", "chat_id_var"),
             ("SnappShop Phone Number:", "phone_var"),
             ("SnappShop Password:", "password_var"),
             ("Target Seller Store URL:", "url_var"),
@@ -268,6 +285,8 @@ class SnappShopAppGUI:
         btn_save.pack(pady=15)
 
     def _load_current_settings(self):
+        self.vars["token_var"].set(settings.TELEGRAM_BOT_TOKEN or "")
+        self.vars["chat_id_var"].set(settings.TELEGRAM_ADMIN_CHAT_ID or "")
         self.vars["phone_var"].set(settings.SNAPSHOP_PHONE_NUMBER or "")
         self.vars["password_var"].set(settings.SNAPSHOP_PASSWORD or "")
         self.vars["url_var"].set(settings.SNAPSHOP_STORE_URL or "")
@@ -277,8 +296,8 @@ class SnappShopAppGUI:
     def save_settings(self):
         try:
             env_path = BASE_DIR / ".env"
-            env_content = f"""TELEGRAM_BOT_TOKEN="{settings.TELEGRAM_BOT_TOKEN}"
-TELEGRAM_ADMIN_CHAT_ID="{settings.TELEGRAM_ADMIN_CHAT_ID or ''}"
+            env_content = f"""TELEGRAM_BOT_TOKEN="{self.vars['token_var'].get()}"
+TELEGRAM_ADMIN_CHAT_ID="{self.vars['chat_id_var'].get()}"
 SNAPSHOP_PHONE_NUMBER="{self.vars['phone_var'].get()}"
 SNAPSHOP_PASSWORD="{self.vars['password_var'].get()}"
 SNAPSHOP_STORE_URL="{self.vars['url_var'].get()}"
@@ -378,6 +397,64 @@ CHECK_INTERVAL_MINUTES="{self.vars['interval_var'].get()}"
             self.root.after(2000, update_logs)
 
         update_logs()
+
+    def import_excel_rules(self):
+        from tkinter import filedialog
+        file_path = filedialog.askopenfilename(
+            title="Select Excel or CSV Product Rules File",
+            filetypes=[("Excel / CSV Files", "*.xlsx *.xls *.csv"), ("All Files", "*.*")]
+        )
+        if not file_path:
+            return
+
+        try:
+            import pandas as pd
+            from src.core.scraper import normalize_persian_text
+            if file_path.endswith(".csv"):
+                df = pd.read_csv(file_path)
+            else:
+                df = pd.read_excel(file_path)
+
+            title_col, min_col, max_col, inc_col, dec_col, price_col = None, None, None, None, None, None
+            for col in df.columns:
+                clean_c = str(col).strip()
+                norm_c = normalize_persian_text(clean_c).lower()
+                if any(k in norm_c for k in ["عنوان", "title", "product", "کالا", "نام"]):
+                    if not title_col: title_col = col
+                elif any(k in norm_c for k in ["حداقل", "min"]): min_col = col
+                elif any(k in norm_c for k in ["حداکثر", "max"]): max_col = col
+                elif "افزایش" in norm_c or "increase" in norm_c: inc_col = col
+                elif "کاهش" in norm_c or "decrease" in norm_c: dec_col = col
+                elif any(k in norm_c for k in ["قیمت", "price"]):
+                    if not price_col: price_col = col
+
+            if not title_col:
+                title_col = df.columns[0]
+
+            products_list = []
+            for idx, row in df.iterrows():
+                title = str(row[title_col]).strip() if pd.notna(row[title_col]) else ""
+                if not title: continue
+                min_p = int(row[min_col]) if min_col and pd.notna(row[min_col]) else None
+                max_p = int(row[max_col]) if max_col and pd.notna(row[max_col]) else None
+                inc_s = int(row[inc_col]) if inc_col and pd.notna(row[inc_col]) else None
+                dec_s = int(row[dec_col]) if dec_col and pd.notna(row[dec_col]) else None
+                last_p = int(row[price_col]) if price_col and pd.notna(row[price_col]) else None
+
+                products_list.append({
+                    "product_title": title,
+                    "min_price": min_p,
+                    "max_price": max_p,
+                    "increase_step": inc_s,
+                    "decrease_step": dec_s,
+                    "last_price": last_p,
+                })
+
+            db_mgr = DatabaseManager(settings.DATABASE_PATH)
+            count = db_mgr.bulk_import_product_rules(products_list)
+            messagebox.showinfo("Success", f"Successfully imported pricing rules for {count} products into database!")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to import product rules: {e}")
 
     def copy_all_logs(self):
         text = self.log_area.get("1.0", "end-1c")
