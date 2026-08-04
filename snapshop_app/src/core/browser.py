@@ -45,9 +45,11 @@ async def get_browser_context(
     """
     Async context manager for Playwright BrowserContext with session persistence and stealth parameters.
     """
-    if not HAS_PLAYWRIGHT:
-        logger.error("Playwright package is not installed. Install via `pip install playwright`.")
-        raise RuntimeError("Playwright is required for browser context execution.")
+    import os
+    if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
+        ms_pw = Path.home() / "AppData" / "Local" / "ms-playwright"
+        if ms_pw.exists():
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(ms_pw)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(

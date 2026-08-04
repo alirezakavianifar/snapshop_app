@@ -22,6 +22,12 @@ else:
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+# Ensure Playwright uses global ms-playwright browsers directory
+if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
+    ms_playwright = Path.home() / "AppData" / "Local" / "ms-playwright"
+    if ms_playwright.exists():
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(ms_playwright)
+
 # Configure Logging to File & Stdout
 log_dir = BASE_DIR / "downloads"
 log_dir.mkdir(parents=True, exist_ok=True)

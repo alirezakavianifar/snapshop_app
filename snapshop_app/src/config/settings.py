@@ -20,6 +20,12 @@ try:
 except ImportError:
     pass
 
+# Ensure Playwright uses global ms-playwright browsers directory
+if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
+    ms_playwright = Path.home() / "AppData" / "Local" / "ms-playwright"
+    if ms_playwright.exists():
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(ms_playwright)
+
 
 class Settings:
     # Telegram Bot Settings

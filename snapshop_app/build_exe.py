@@ -81,6 +81,22 @@ def build():
         shutil.copy(state_src, state_dest)
         print(f"Copied storage_state.json -> {state_dest}")
 
+    local_browsers_dest = dist_dir / "_internal" / "playwright" / "driver" / "package" / ".local-browsers"
+    global_ms_pw = Path.home() / "AppData" / "Local" / "ms-playwright"
+    if global_ms_pw.exists():
+        local_browsers_dest.mkdir(parents=True, exist_ok=True)
+        for item in global_ms_pw.iterdir():
+            target_item = local_browsers_dest / item.name
+            if not target_item.exists():
+                try:
+                    if item.is_dir():
+                        shutil.copytree(item, target_item)
+                    else:
+                        shutil.copy(item, target_item)
+                except Exception as cp_err:
+                    print(f"Browser copy warning: {cp_err}")
+        print(f"Copied ms-playwright browsers -> {local_browsers_dest}")
+
     exe_path = dist_dir / "SnappShopControlPanel.exe"
     print("\n==================================================")
     print("✅ WINDOWS EXECUTABLE BUILD SUCCESSFUL!")
