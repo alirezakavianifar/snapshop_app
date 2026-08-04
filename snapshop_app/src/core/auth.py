@@ -127,46 +127,71 @@ async def login_to_seller_panel(
             logger.info("✅ Login successful! Session restored.")
             return True
 
-        # Fallback to OTP entry
-        logger.info("OTP verification required. Waiting 2 minutes (120s) for OTP completion...")
-        if otp_callback:
+        # Fallback to OTP entry with automatic "دریافت مجدد کد" resend loop
+        max_otp_attempts = 3
+        for attempt in range(1, max_otp_attempts + 1):
+            logger.info(f"OTP verification attempt {attempt}/{max_otp_attempts}. Waiting 2 minutes (120s)...")
+            if otp_callback:
+                try:
+                    await otp_callback(phone_number)
+                except Exception as cb_err:
+                    logger.warning(f"Could not trigger OTP notification callback: {cb_err}")
+
+            otp_future = asyncio.get_event_loop().create_future()
             try:
-                await otp_callback(phone_number)
-            except Exception as cb_err:
-                logger.warning(f"Could not trigger OTP notification callback: {cb_err}")
+                from src.telegram.handlers import set_otp_future
+                set_otp_future(otp_future)
+            except Exception:
+                pass
 
-        otp_future = asyncio.get_event_loop().create_future()
-        try:
-            from src.telegram.handlers import set_otp_future
-            set_otp_future(otp_future)
-        except Exception:
-            pass
+            logged_in = False
+            for _ in range(80):
+                await asyncio.sleep(1.5)
+                if await check_is_logged_in_passive(page):
+                    logger.info("✅ Detected successful OTP login redirect in browser!")
+                    logged_in = True
+                    break
 
-        for _ in range(80):
-            await asyncio.sleep(1.5)
-            if await check_is_logged_in_passive(page):
-                logger.info("✅ Detected successful OTP login redirect in browser!")
+                if otp_future.done() and not otp_future.cancelled():
+                    try:
+                        telegram_code = otp_future.result()
+                        if telegram_code:
+                            logger.info(f"Submitting OTP code received via Telegram: {telegram_code}")
+                            otp_inputs = await page.query_selector_all("input[type='text'], input[type='number']")
+                            if len(otp_inputs) == 1:
+                                await otp_inputs[0].fill(telegram_code)
+                            elif len(otp_inputs) >= len(telegram_code):
+                                for i, char in enumerate(telegram_code):
+                                    await otp_inputs[i].fill(char)
+                            await random_delay(1.5, 3.0)
+                            submit_btn = await page.query_selector("button[type='submit'], xpath=//button[contains(text(), 'تایید') or contains(text(), 'ادامه')]")
+                            if submit_btn and await submit_btn.is_visible():
+                                await submit_btn.click(force=True)
+                            await random_delay(2.0, 4.0)
+                            if await check_is_logged_in_passive(page) or await check_is_logged_in(page):
+                                logged_in = True
+                                break
+                    except Exception as t_err:
+                        logger.warning(f"Error handling Telegram OTP result: {t_err}")
+
+            if logged_in or await check_is_logged_in_passive(page):
                 break
 
-            if otp_future.done() and not otp_future.cancelled():
-                try:
-                    telegram_code = otp_future.result()
-                    if telegram_code:
-                        logger.info(f"Submitting OTP code received via Telegram: {telegram_code}")
-                        otp_inputs = await page.query_selector_all("input[type='text'], input[type='number']")
-                        if len(otp_inputs) == 1:
-                            await otp_inputs[0].fill(telegram_code)
-                        elif len(otp_inputs) >= len(telegram_code):
-                            for i, char in enumerate(telegram_code):
-                                await otp_inputs[i].fill(char)
-                        await random_delay(1.5, 3.0)
-                        submit_btn = await page.query_selector("button[type='submit'], xpath=//button[contains(text(), 'تایید') or contains(text(), 'ادامه')]")
-                        if submit_btn and await submit_btn.is_visible():
-                            await submit_btn.click(force=True)
-                        await random_delay(2.0, 4.0)
-                        break
-                except Exception as t_err:
-                    logger.warning(f"Error handling Telegram OTP result: {t_err}")
+            # If 2 minutes passed without OTP entry, click "دریافت مجدد کد" and reset timer for next attempt
+            if attempt < max_otp_attempts:
+                logger.info("⏱ 2 minutes elapsed without OTP entry. Clicking 'دریافت مجدد کد' (Resend Code)...")
+                resend_btn = await page.query_selector(
+                    "xpath=//button[contains(text(), 'دریافت مجدد') or contains(text(), 'مجدد') or contains(text(), 'ارسال مجدد')]"
+                )
+                if resend_btn and await resend_btn.is_visible():
+                    try:
+                        await resend_btn.click(force=True)
+                    except Exception:
+                        await page.evaluate("el => el.click()", resend_btn)
+                    logger.info("✅ Clicked 'دریافت مجدد کد'. Resetting timer for 2 more minutes.")
+                    await random_delay(3.0, 5.0)
+                else:
+                    logger.warning("Could not find 'دریافت مجدد کد' button. Retrying wait loop...")
 
         success = await check_is_logged_in_passive(page) or await check_is_logged_in(page)
         if success:
