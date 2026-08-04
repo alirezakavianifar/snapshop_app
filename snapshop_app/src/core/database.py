@@ -139,3 +139,64 @@ class DatabaseManager:
                 (product_title, old_price, new_price, competitor_price, reason, now_str),
             )
             conn.commit()
+
+    def bulk_import_product_rules(self, products_list: list) -> int:
+        """
+        Bulk upsert custom product pricing rules (min_price, max_price, increase_step, decrease_step)
+        from Excel/CSV files uploaded via Telegram or UI.
+        """
+        now_str = datetime.now().isoformat()
+        count = 0
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            for prod in products_list:
+                title = prod.get("product_title")
+                if not title:
+                    continue
+
+                cursor.execute(
+                    """
+                    INSERT INTO product_state (
+                        product_title, has_competitors, last_checked_at, last_price,
+                        min_price, max_price, increase_step, decrease_step
+                    ) VALUES (?, 0, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(product_title) DO UPDATE SET
+                        last_price = COALESCE(excluded.last_price, last_price),
+                        min_price = COALESCE(excluded.min_price, min_price),
+                        max_price = COALESCE(excluded.max_price, max_price),
+                        increase_step = COALESCE(excluded.increase_step, increase_step),
+                        decrease_step = COALESCE(excluded.decrease_step, decrease_step)
+                """,
+                    (
+                        title,
+                        now_str,
+                        prod.get("last_price"),
+                        prod.get("min_price"),
+                        prod.get("max_price"),
+                        prod.get("increase_step"),
+                        prod.get("decrease_step"),
+                    ),
+                )
+                count += 1
+            conn.commit()
+        logger.info(f"Bulk imported custom rules for {count} products into database.")
+        return count
+
+    def get_product_rules(self, product_title: str) -> Optional[Dict[str, Any]]:
+        """Retrieve stored pricing rules for a given product title."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT min_price, max_price, increase_step, decrease_step, last_price FROM product_state WHERE product_title = ?",
+                (product_title,),
+            )
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "min_price": row[0],
+                    "max_price": row[1],
+                    "increase_step": row[2],
+                    "decrease_step": row[3],
+                    "last_price": row[4],
+                }
+            return None

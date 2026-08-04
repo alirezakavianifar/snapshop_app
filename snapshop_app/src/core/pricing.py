@@ -114,18 +114,28 @@ def process_inventory_and_generate_update(
         title = str(row[title_col]).strip()
         current_p = int(row[price_col]) if pd.notna(row[price_col]) else 0
 
-        # Read optional custom bounds from Excel if available
-        min_p = int(row["قیمت حداقل"]) if "قیمت حداقل" in df.columns and pd.notna(row["قیمت حداقل"]) else None
-        max_p = int(row["قیمت حداکثر"]) if "قیمت حداکثر" in df.columns and pd.notna(row["قیمت حداکثر"]) else None
+        # Read optional custom bounds from Excel or fallback to database rules stored from Telegram uploads
+        db_rules = db_manager.get_product_rules(title) or {}
+
+        min_p = (
+            int(row["قیمت حداقل"])
+            if "قیمت حداقل" in df.columns and pd.notna(row["قیمت حداقل"])
+            else db_rules.get("min_price")
+        )
+        max_p = (
+            int(row["قیمت حداکثر"])
+            if "قیمت حداکثر" in df.columns and pd.notna(row["قیمت حداکثر"])
+            else db_rules.get("max_price")
+        )
         inc_step = (
             int(row["گام افزایش قیمت"])
             if "گام افزایش قیمت" in df.columns and pd.notna(row["گام افزایش قیمت"])
-            else settings.DEFAULT_INCREASE_STEP
+            else (db_rules.get("increase_step") or settings.DEFAULT_INCREASE_STEP)
         )
         dec_step = (
             int(row["گام کاهش قیمت"])
             if "گام کاهش قیمت" in df.columns and pd.notna(row["گام کاهش قیمت"])
-            else settings.DEFAULT_DECREASE_STEP
+            else (db_rules.get("decrease_step") or settings.DEFAULT_DECREASE_STEP)
         )
 
         comp_info = comp_map.get(title, {})

@@ -6,7 +6,14 @@ logger = logging.getLogger(__name__)
 
 try:
     from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
-    from src.telegram.handlers import start_command, status_command, handle_document, handle_message
+    from src.telegram.handlers import (
+        start_command,
+        status_command,
+        run_now_command,
+        set_interval_command,
+        handle_document,
+        handle_message,
+    )
     HAS_TELEGRAM = True
 except ImportError:
     HAS_TELEGRAM = False
@@ -30,6 +37,8 @@ def create_telegram_bot_app(token: Optional[str] = None):
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", start_command))
     app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("run_now", run_now_command))
+    app.add_handler(CommandHandler("set_interval", set_interval_command))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
