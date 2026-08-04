@@ -42,8 +42,18 @@ def build():
         f"--add-data={base_dir / '.env.example'};.",
         f"--add-data={base_dir / 'README_FA.md'};.",
         f"--add-data={base_dir / 'src'};src",
-        str(base_dir / "gui.py"),
     ]
+
+    try:
+        import playwright
+        pw_driver = Path(playwright.__file__).parent / "driver"
+        if pw_driver.exists():
+            cmd.append(f"--add-data={pw_driver};playwright/driver")
+            print(f"Bundling Playwright driver binary from {pw_driver}")
+    except ImportError:
+        pass
+
+    cmd.append(str(base_dir / "gui.py"))
 
     print(f"Executing command: {' '.join(cmd)}")
     res = subprocess.run(cmd, cwd=str(base_dir))

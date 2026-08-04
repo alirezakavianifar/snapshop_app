@@ -22,6 +22,21 @@ else:
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
+# Configure Logging to File & Stdout
+log_dir = BASE_DIR / "downloads"
+log_dir.mkdir(parents=True, exist_ok=True)
+log_file = log_dir / "bot_activity.log"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.FileHandler(log_file, encoding="utf-8"),
+        logging.StreamHandler(sys.stdout),
+    ],
+    force=True,
+)
+
 from src.config.settings import settings
 from src.core.database import DatabaseManager
 from src.scheduler.job_runner import run_sync_cycle
