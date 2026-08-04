@@ -158,6 +158,55 @@ def process_inventory_and_generate_update(
 
         norm_title = clean_title_key(title)
         comp_info = comp_map.get(norm_title, {})
+
+        if not comp_info:
+            # Robust fuzzy/numeric token matching for catalog title mismatches (e.g. 'گوشواره' vs 'پلاک')
+            title_tokens = set(norm_title.split())
+            def extract_numbers(text):
+                return set(re.findall(r"\d+\.?\d*", text))
+            def get_float_values(num_strings):
+                floats = set()
+                for ns in num_strings:
+                    try:
+                        floats.add(float(ns))
+                    except ValueError:
+                        pass
+                return floats
+
+            title_floats = get_float_values(extract_numbers(norm_title))
+            title_weights = {f for f in title_floats if f < 5.0}
+
+            best_match_key = None
+            best_match_score = 0
+
+            for scraped_key, scraped_item in comp_map.items():
+                scraped_tokens = set(scraped_key.split())
+                scraped_floats = get_float_values(extract_numbers(scraped_key))
+                scraped_weights = {f for f in scraped_floats if f < 5.0}
+
+                # Weights (floats < 5.0) must match exactly
+                if title_weights and scraped_weights:
+                    # If one of the weights is different, mismatch
+                    # Let's ensure the intersection of weights is non-empty
+                    if not title_weights.intersection(scraped_weights):
+                        continue
+                elif title_weights != scraped_weights:
+                    # One has weight and the other doesn't
+                    continue
+
+                # Ensure main model number/karat overlaps (e.g. 18 karat, or model code 9)
+                if not title_floats.intersection(scraped_floats):
+                    continue
+
+                token_overlap = title_tokens.intersection(scraped_tokens)
+                score = len(token_overlap)
+                if score > best_match_score and score >= 4:
+                    best_match_score = score
+                    best_match_key = scraped_key
+
+            if best_match_key:
+                comp_info = comp_map[best_match_key]
+                logger.info(f"Fuzzy matched Excel product '{title}' with scraped storefront '{comp_info.get('title')}' (Score: {best_match_score})")
         
         # Read direct Buybox information from Inventory Excel row
         excel_buybox_price = (
