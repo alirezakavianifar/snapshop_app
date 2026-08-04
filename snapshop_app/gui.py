@@ -127,6 +127,20 @@ class SnappShopAppGUI:
         )
         self.btn_import_rules.pack(side="left", padx=5)
 
+        self.headless_var = tk.BooleanVar(value=os.environ.get("HEADLESS", "true").lower() in ("true", "1", "yes"))
+        self.chk_headless = tk.Checkbutton(
+            btn_frame,
+            text="🕶️ Headless Mode (Hide Browser)",
+            variable=self.headless_var,
+            font=("Segoe UI", 10, "bold"),
+            fg=self.TEXT_COLOR,
+            bg=self.CARD_BG,
+            selectcolor="#11111b",
+            activebackground=self.CARD_BG,
+            activeforeground=self.TEXT_COLOR,
+        )
+        self.chk_headless.pack(side="left", padx=15)
+
         self.btn_toggle_scheduler = tk.Button(
             btn_frame,
             text="🔄 Start Continuous Monitor (Every 20m)",
@@ -281,6 +295,7 @@ class SnappShopAppGUI:
     def save_settings(self):
         try:
             env_path = BASE_DIR / ".env"
+            is_h = "true" if self.headless_var.get() else "false"
             env_content = f"""TELEGRAM_BOT_TOKEN="{self.vars['token_var'].get()}"
 TELEGRAM_ADMIN_CHAT_ID="{self.vars['chat_id_var'].get()}"
 SNAPSHOP_PHONE_NUMBER="{self.vars['phone_var'].get()}"
@@ -288,6 +303,7 @@ SNAPSHOP_PASSWORD="{self.vars['password_var'].get()}"
 SNAPSHOP_STORE_URL="{self.vars['url_var'].get()}"
 SNAPSHOP_COMPANY_NAME="{self.vars['company_var'].get()}"
 CHECK_INTERVAL_MINUTES="{self.vars['interval_var'].get()}"
+HEADLESS="{is_h}"
 """
             with open(env_path, "w", encoding="utf-8") as f:
                 f.write(env_content)
@@ -306,7 +322,7 @@ CHECK_INTERVAL_MINUTES="{self.vars['interval_var'].get()}"
 
         def task():
             try:
-                os.environ["HEADLESS"] = "false"
+                os.environ["HEADLESS"] = "true" if self.headless_var.get() else "false"
                 asyncio.run(run_sync_cycle())
             except Exception as err:
                 logging.error(f"Sync error: {err}")
@@ -326,7 +342,7 @@ CHECK_INTERVAL_MINUTES="{self.vars['interval_var'].get()}"
             def loop():
                 import time
                 while self.is_running:
-                    os.environ["HEADLESS"] = "true"
+                    os.environ["HEADLESS"] = "true" if self.headless_var.get() else "false"
                     asyncio.run(run_sync_cycle())
                     interval = int(self.vars["interval_var"].get() or 20) * 60
                     for _ in range(interval):
