@@ -10,6 +10,14 @@ def build():
     base_dir = Path(__file__).resolve().parent
     print(f"Building Standalone Windows Executable from {base_dir}...")
 
+    # Preserve active session before clean build
+    dist_state = base_dir / "dist" / "SnappShopControlPanel" / "downloads" / "storage_state.json"
+    root_state = base_dir / "downloads" / "storage_state.json"
+    root_state.parent.mkdir(parents=True, exist_ok=True)
+    if dist_state.exists() and dist_state.stat().st_size > 50:
+        shutil.copy(dist_state, root_state)
+        print(f"Preserved active session from dist -> {root_state}")
+
     # PyInstaller Arguments
     cmd = [
         sys.executable,
