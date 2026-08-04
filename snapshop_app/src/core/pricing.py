@@ -198,9 +198,13 @@ def process_inventory_and_generate_update(
                 if not title_floats.intersection(scraped_floats):
                     continue
 
-                token_overlap = title_tokens.intersection(scraped_tokens)
+                # Exclude extremely common gold catalog stop words to prevent false matching collisions
+                STOP_WORDS = {"طلا", "18", "عیار", "زنانه", "گرم", "مدل", "طرح", "کد", "آویز", "پلاک", "گردنبند", "گوشواره"}
+                title_unique = title_tokens - STOP_WORDS
+                scraped_unique = scraped_tokens - STOP_WORDS
+                token_overlap = title_unique.intersection(scraped_unique)
                 score = len(token_overlap)
-                if score > best_match_score and score >= 4:
+                if score > best_match_score and score >= 2:
                     best_match_score = score
                     best_match_key = scraped_key
 

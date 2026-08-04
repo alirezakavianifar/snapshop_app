@@ -156,7 +156,7 @@ async def scrape_storefront_buybox(
 
     try:
         logger.info(f"Scraping storefront: {store_url}")
-        target_url = f"{store_url}?is_available=true&has_discount=true&page=1"
+        target_url = f"{store_url}?is_available=true&page=1"
         await page.goto(target_url, timeout=30000)
         await smooth_scroll_down(page)
 
@@ -172,7 +172,7 @@ async def scrape_storefront_buybox(
         product_hrefs = []
 
         for p_num in range(1, total_pages + 1):
-            url = f"{store_url}?is_available=true&has_discount=true&page={p_num}"
+            url = f"{store_url}?is_available=true&page={p_num}"
             await page.goto(url, timeout=20000)
             await random_delay(0.5, 1.0)
             
