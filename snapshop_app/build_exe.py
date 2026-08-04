@@ -41,6 +41,7 @@ def build():
         "--hidden-import=src.scheduler.job_runner",
         f"--add-data={base_dir / '.env.example'};.",
         f"--add-data={base_dir / 'README_FA.md'};.",
+        f"--add-data={base_dir / 'src'};src",
         str(base_dir / "gui.py"),
     ]
 

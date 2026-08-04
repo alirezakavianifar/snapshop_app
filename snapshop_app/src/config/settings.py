@@ -5,6 +5,12 @@ from typing import Optional
 
 if getattr(sys, "frozen", False):
     BASE_DIR = Path(sys.executable).resolve().parent
+    meipass_dir = Path(getattr(sys, "_MEIPASS", sys.executable)).resolve()
+    if meipass_dir.exists() and str(meipass_dir) not in sys.path:
+        sys.path.insert(0, str(meipass_dir))
+    internal_dir = BASE_DIR / "_internal"
+    if internal_dir.exists() and str(internal_dir) not in sys.path:
+        sys.path.insert(0, str(internal_dir))
 else:
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
 

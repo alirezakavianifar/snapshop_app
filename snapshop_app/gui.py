@@ -7,13 +7,20 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 
-# Ensure project root is in sys.path
+# Ensure project root & frozen modules are in sys.path
 if getattr(sys, "frozen", False):
     BASE_DIR = Path(sys.executable).resolve().parent
+    meipass_dir = Path(getattr(sys, "_MEIPASS", sys.executable)).resolve()
+    if meipass_dir.exists() and str(meipass_dir) not in sys.path:
+        sys.path.insert(0, str(meipass_dir))
+    internal_dir = BASE_DIR / "_internal"
+    if internal_dir.exists() and str(internal_dir) not in sys.path:
+        sys.path.insert(0, str(internal_dir))
 else:
     BASE_DIR = Path(__file__).resolve().parent
 
-sys.path.insert(0, str(BASE_DIR))
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 from src.config.settings import settings
 from src.core.database import DatabaseManager
