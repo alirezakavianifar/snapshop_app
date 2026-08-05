@@ -47,6 +47,15 @@ class DatabaseManager:
                     timestamp TEXT NOT NULL
                 )
             """)
+            # Auto-migrate existing SQLite databases
+            try:
+                cursor.execute("ALTER TABLE product_state ADD COLUMN consecutive_floor_count INTEGER NOT NULL DEFAULT 0")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE product_state ADD COLUMN last_strategy_action TEXT")
+            except Exception:
+                pass
             conn.commit()
             logger.info(f"Database initialized at {self.db_path}")
 
