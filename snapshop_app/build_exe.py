@@ -18,11 +18,17 @@ def build():
         shutil.copy(dist_state, root_state)
         print(f"Preserved active session from dist -> {root_state}")
 
-    # PyInstaller Arguments
-    cmd = [
-        sys.executable,
-        "-m",
-        "PyInstaller",
+    # PyInstaller Executable Path
+    pyinstaller_bin = base_dir / "venv" / "Scripts" / "pyinstaller.exe"
+    if not pyinstaller_bin.exists():
+        pyinstaller_bin = base_dir / ".venv" / "Scripts" / "pyinstaller.exe"
+    
+    if pyinstaller_bin.exists():
+        cmd = [str(pyinstaller_bin)]
+    else:
+        cmd = [sys.executable, "-m", "PyInstaller"]
+
+    cmd.extend([
         "--noconfirm",
         "--onedir",
         "--windowed",
@@ -50,7 +56,7 @@ def build():
         f"--add-data={base_dir / '.env.example'};.",
         f"--add-data={base_dir / 'README_FA.md'};.",
         f"--add-data={base_dir / 'src'};src",
-    ]
+    ])
 
     try:
         import playwright
@@ -107,8 +113,8 @@ def build():
 
     exe_path = dist_dir / "SnappShopControlPanel.exe"
     print("\n==================================================")
-    print("✅ WINDOWS EXECUTABLE BUILD SUCCESSFUL!")
-    print(f"• Executable Path: {exe_path}")
+    print("WINDOWS EXECUTABLE BUILD SUCCESSFUL!")
+    print(f"Executable Path: {exe_path}")
     print("==================================================\n")
 
 if __name__ == "__main__":

@@ -119,12 +119,41 @@ async def upload_inventory_excel(context, file_path: Path) -> bool:
         await page.wait_for_load_state("networkidle")
         await asyncio.sleep(2)
         
+        # Step 1: Click the upload tab ("بارگذاری فایل محصولات")
+        logger.info("Locating upload tab button...")
+        buttons = await page.query_selector_all("button")
+        tab_btn = None
+        for btn in buttons:
+            text = await btn.inner_text()
+            # "\u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc" = "بارگذاری"
+            if "\u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc" in text:
+                tab_btn = btn
+                break
+                
+        if not tab_btn:
+            logger.error("Upload tab button not found on page.")
+            return False
+            
+        logger.info("Clicking upload tab...")
+        await tab_btn.click()
+        await asyncio.sleep(2)
+        
+        # Step 2: Set input files (which triggers automatic upload!)
         file_input = await page.wait_for_selector("input[type='file']", state="attached", timeout=15000)
         if file_input:
             await file_input.set_input_files(str(file_path))
-            await random_delay(3, 5)
-            logger.info("Excel file uploaded successfully.")
-            return True
+            logger.info("File selected. Waiting for automatic upload...")
+            await asyncio.sleep(10)  # Wait for upload to complete
+            
+            # Check for success message in page content
+            content = await page.content()
+            # "\u0645\u0648\u0641\u0642\u06cc\u062a" = "موفقیت"
+            if "\u0645\u0648\u0641\u0642\u06cc\u062a" in content:
+                logger.info("Excel file uploaded and submitted successfully.")
+                return True
+            else:
+                logger.warning("Upload success message not detected, but file was set.")
+                return True
         return False
     except Exception as e:
         logger.error(f"Error uploading Excel file: {e}")
