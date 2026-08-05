@@ -253,7 +253,7 @@ async def scrape_storefront_buybox(
                 base_title = (await title_el.inner_text()).strip() if title_el else ""
 
                 # Check for weight variant pills (e.g. 0.19 گرم, 0.22 گرم...)
-                variant_btns = await page.query_selector_all("button:has-text('گرم'), [class*='variant'] button")
+                variant_btns = await page.query_selector_all("span:has-text('گرم'), button:has-text('گرم'), [class*='variant'] span")
                 
                 distinct_variants = []
                 seen_weights = set()
