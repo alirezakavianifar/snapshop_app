@@ -329,6 +329,20 @@ def process_inventory_and_generate_update(
 
     df[price_col] = new_prices
 
+    # Ensure valid discount fields for SnappShop bulk update validation
+    if "تخفیف دارد" in df.columns:
+        stock_col = "موجودی فروشگاه" if "موجودی فروشگاه" in df.columns else None
+        if "موجود در تخفیف" in df.columns:
+            if stock_col:
+                df["موجود در تخفیف"] = df["موجود در تخفیف"].fillna(df[stock_col]).fillna(99)
+            else:
+                df["موجود در تخفیف"] = df["موجود در تخفیف"].fillna(99)
+                
+        base_p_col = "قیمت به تومان"
+        disc_p_col = "قیمت بعد از تخفیف به تومان"
+        if base_p_col in df.columns and disc_p_col in df.columns:
+            df[base_p_col] = df[[base_p_col, disc_p_col]].max(axis=1)
+
     # Save output Excel
     output_path.parent.mkdir(parents=True, exist_ok=True)
     sheet_name = "فهرست محصولات"
