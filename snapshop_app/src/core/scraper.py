@@ -164,13 +164,14 @@ async def upload_inventory_excel(context, file_path: Path) -> bool:
 
 def normalize_persian_text(text: str) -> str:
     """
-    Normalize Persian string characters to avoid mismatch due to Ye (ي/ی), Kef (ك/ک), ZWNJ, and spacing.
+    Normalize Persian string characters to avoid mismatch due to Ye (ي/ی), Kef (ك/ک), ZWNJ, digits, and spacing.
     """
     if not text:
         return ""
     text = text.replace("\u064a", "\u06cc").replace("\u0649", "\u06cc")
     text = text.replace("\u0643", "\u06a9")
     text = text.replace("\u200c", " ").replace("\u200b", " ").replace("\xa0", " ")
+    text = text.translate(str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789"))
     return " ".join(text.split()).strip()
 
 
@@ -252,12 +253,12 @@ async def scrape_storefront_buybox(
                 base_title = (await title_el.inner_text()).strip() if title_el else ""
 
                 # Check for weight variant pills (e.g. 0.19 گرم, 0.22 گرم...)
-                variant_btns = await page.query_selector_all("button:has-text('گرم'), div:has-text('گرم'), [class*='variant'] button")
+                variant_btns = await page.query_selector_all("button:has-text('گرم'), [class*='variant'] button")
                 
                 distinct_variants = []
                 seen_weights = set()
                 for btn in variant_btns:
-                    txt = (await btn.inner_text()).strip()
+                    txt = normalize_persian_text(await btn.inner_text())
                     m = re.search(r"\d+\.?\d*\s*گرم", txt)
                     if m and txt not in seen_weights and len(txt) < 15:
                         seen_weights.add(txt)

@@ -67,7 +67,7 @@ def calculate_product_price(
 def clean_title_key(title: str) -> str:
     """
     Clean and normalize product titles for robust matching between Excel catalog and Web Scraper.
-    Strips 'وزن:', 'گارانتی سلامت فیزیکی کالا 1 ماه', ZWNJ, and extra spaces.
+    Strips 'وزن:', 'گارانتی سلامت فیزیکی کالا 1 ماه', ZWNJ, extra spaces, and normalizes digits.
     """
     if not title:
         return ""
