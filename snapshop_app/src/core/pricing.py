@@ -264,8 +264,8 @@ def process_inventory_and_generate_update(
             has_comp = False
             comp_price = None
 
-        # Check 24-hour rule for competitor-less items
-        if not db_manager.should_check_product(title):
+        # Check 24-hour rule for competitor-less items (only if live scraper also found no competitor)
+        if not has_comp and not db_manager.should_check_product(title):
             skipped_count += 1
             new_prices.append(current_p)
             continue
