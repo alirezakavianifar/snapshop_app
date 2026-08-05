@@ -44,9 +44,11 @@ async def download_inventory_excel(context, download_dir: Path) -> Optional[Path
                 async with page.expect_download(timeout=20000) as download_info:
                     await download_el.click(force=True)
                 download = await download_info.value
+                await download.path()
                 saved_path = download_dir / download.suggested_filename
                 await download.save_as(str(saved_path))
                 logger.info(f"Downloaded inventory Excel: {saved_path}")
+                await asyncio.sleep(1)
                 return saved_path
             except Exception as dl_err:
                 logger.warning(f"Direct download click failed: {dl_err}. Attempting new export request...")
@@ -91,6 +93,7 @@ async def download_inventory_excel(context, download_dir: Path) -> Optional[Path
         saved_path = download_dir / download.suggested_filename
         await download.save_as(str(saved_path))
         logger.info(f"Downloaded inventory Excel: {saved_path}")
+        await asyncio.sleep(1)
         return saved_path
     except Exception as e:
         logger.error(f"Failed to download inventory Excel: {e}")
@@ -100,7 +103,6 @@ async def download_inventory_excel(context, download_dir: Path) -> Optional[Path
             latest = max(existing_files, key=lambda f: f.stat().st_mtime)
             logger.warning(f"Download exception caught. Falling back to existing inventory file: {latest}")
             return latest
-        return None
         return None
     finally:
         await page.close()
