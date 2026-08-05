@@ -50,12 +50,13 @@ def calculate_product_price(
         reason = f"PROBE RESET: Stuck near floor ({current_price:,}) for {consecutive_floor_count + 1} cycles. Bouncing price to {bounce_price:,} to reset market."
         return bounce_price, reason, 0, "PROBED"
 
-    # Case 2: Competitor is cheaper than our current price
-    if competitor_price < current_price:
-        if strategy_mode in ("SMART_HYBRID", "MATCH"):
+    # Case 2: Competitor is cheaper than or equal to our current price
+    if competitor_price <= current_price:
+        if strategy_mode == "MATCH":
             target_price = competitor_price
             action = "MATCHED"
         else:
+            # SMART_HYBRID & UNDERCUT: Undercut by step to guarantee winning the Buybox!
             target_price = competitor_price - decrease_step
             action = "UNDERCUT"
 

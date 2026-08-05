@@ -272,7 +272,7 @@ async def scrape_storefront_buybox(
                     if v_btn:
                         try:
                             await v_btn.click(force=True)
-                            await asyncio.sleep(0.9)
+                            await asyncio.sleep(1.8)
                         except Exception:
                             pass
 
