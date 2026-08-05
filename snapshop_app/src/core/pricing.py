@@ -22,46 +22,69 @@ def calculate_product_price(
     max_price: Optional[int] = None,
     increase_step: int = 1000,
     decrease_step: int = 1000,
-) -> Tuple[int, str]:
+    strategy_mode: str = "SMART_HYBRID",
+    consecutive_floor_count: int = 0,
+) -> Tuple[int, str, int, str]:
     """
-    Calculate new competitive price based on competitor status, min/max bounds, and steps.
+    Calculate new competitive price using Smart Hybrid strategy (Price Matching + Reset Probe).
+    Returns (new_price, reason, new_consecutive_floor_count, strategy_action).
     """
-    # Fallback bounds if not explicitly provided
     if min_price is None or min_price <= 0:
-        min_price = int(current_price * 0.7)  # Floor protection: max 30% drop below current
+        min_price = int(current_price * 0.7)  # Floor protection: max 30% drop
     if max_price is None or max_price <= 0:
         max_price = int(current_price * 1.5)  # Ceiling protection
 
     # Case 1: No competitor exists -> Maintain current price
     if competitor_price is None or competitor_price <= 0:
-        return current_price, "No competitor: maintaining current price"
+        return current_price, "No competitor: maintaining current price", 0, "MAINTAIN"
 
-    # Case 2: Competitor is cheaper than our current price -> Reduce price by decrease_step
+    # Strategy Option: PROBE_RESET Check (Escape Price War Traps)
+    # If price has been stuck near min_price for >= threshold consecutive cycles, execute a Probe Reset!
+    threshold = getattr(settings, "PROBE_RESET_THRESHOLD", 3)
+    bounce_pct = getattr(settings, "PROBE_RESET_BOUNCE_PERCENT", 0.15)
+    
+    is_at_floor = current_price <= (min_price + decrease_step)
+    
+    if strategy_mode == "SMART_HYBRID" and is_at_floor and consecutive_floor_count >= (threshold - 1):
+        bounce_price = min(max_price, int(current_price * (1 + bounce_pct)))
+        reason = f"PROBE RESET: Stuck near floor ({current_price:,}) for {consecutive_floor_count + 1} cycles. Bouncing price to {bounce_price:,} to reset market."
+        return bounce_price, reason, 0, "PROBED"
+
+    # Case 2: Competitor is cheaper than our current price
     if competitor_price < current_price:
-        target_price = competitor_price - decrease_step
+        if strategy_mode in ("SMART_HYBRID", "MATCH"):
+            target_price = competitor_price
+            action = "MATCHED"
+        else:
+            target_price = competitor_price - decrease_step
+            action = "UNDERCUT"
+
         if target_price < min_price:
             new_price = min_price
-            reason = f"Competitor at {competitor_price}: target {target_price} below min_price ({min_price})"
+            new_floor_count = consecutive_floor_count + 1
+            reason = f"Competitor at {competitor_price:,}: target below min_price ({min_price:,}). Capped at floor."
         else:
             new_price = target_price
-            reason = f"Competitor at {competitor_price}: reduced by step ({decrease_step})"
-        return new_price, reason
+            new_floor_count = consecutive_floor_count + 1 if new_price <= (min_price + decrease_step) else 0
+            reason = f"Competitor at {competitor_price:,}: {action.lower()} price to {new_price:,}"
+        return new_price, reason, new_floor_count, action
 
-    # Case 3: Competitor is higher than our current price -> Increase price up towards competitor price
+    # Case 3: Competitor is higher than our current price -> Step up towards competitor price
     if competitor_price > current_price:
-        target_price = competitor_price - decrease_step
+        target_price = competitor_price if strategy_mode in ("SMART_HYBRID", "MATCH") else (competitor_price - decrease_step)
         if target_price > max_price:
             new_price = max_price
-            reason = f"Competitor at {competitor_price}: capped at max_price ({max_price})"
+            reason = f"Competitor at {competitor_price:,}: capped at max_price ({max_price:,})"
         elif target_price > current_price:
             new_price = min(target_price, current_price + increase_step)
-            reason = f"Competitor increased to {competitor_price}: stepping up price"
+            reason = f"Competitor higher at {competitor_price:,}: stepping up price to {new_price:,}"
         else:
             new_price = current_price
-            reason = "Already optimally priced relative to competitor"
-        return new_price, reason
+            reason = "Optimally priced relative to competitor"
+        return new_price, reason, 0, "STEP_UP"
 
-    return current_price, "No price change required"
+    # Case 4: Equal price
+    return current_price, "Prices equal: maintaining position", 0, "MATCHED"
 
 
 def clean_title_key(title: str) -> str:
@@ -247,26 +270,32 @@ def process_inventory_and_generate_update(
             continue
 
         # Core Buybox Winner Strategy Logic
-        if has_comp and comp_price and comp_price > 0:
-            if not is_buybox_winner:
-                # We are NOT winning the Buybox -> Undercut competitor to WIN Buybox!
-                target_p = comp_price - dec_step
-                floor_min = min_p if (min_p and min_p > 0) else int(current_p * 0.7)
-                calculated_p = max(target_p, floor_min)
-                reason = f"Not Buybox winner: undercutting competitor ({comp_price:,}) to win Buybox"
-            else:
-                # We ARE the Buybox winner -> Maintain current price
-                calculated_p = current_p
-                reason = "Already Buybox winner: maintaining current price"
+        strat_state = db_manager.get_product_strategy_state(title)
+        floor_count = strat_state.get("consecutive_floor_count", 0)
+        strategy_mode = getattr(settings, "REPRICING_STRATEGY", "SMART_HYBRID")
+
+        if is_buybox_winner:
+            calculated_p = current_p
+            reason = "Already Buybox winner: maintaining current price"
+            new_floor_count = 0
+            action = "MAINTAIN"
         else:
-            calculated_p, reason = calculate_product_price(
+            calculated_p, reason, new_floor_count, action = calculate_product_price(
                 current_price=current_p,
                 competitor_price=comp_price,
                 min_price=min_p,
                 max_price=max_p,
                 increase_step=inc_step,
                 decrease_step=dec_step,
+                strategy_mode=strategy_mode,
+                consecutive_floor_count=floor_count,
             )
+
+        db_manager.update_product_strategy_state(
+            product_title=title,
+            consecutive_floor_count=new_floor_count,
+            last_strategy_action=action,
+        )
 
         db_manager.update_product_state(
             product_title=title,

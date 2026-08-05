@@ -31,7 +31,9 @@ class DatabaseManager:
                     min_price INTEGER,
                     max_price INTEGER,
                     increase_step INTEGER,
-                    decrease_step INTEGER
+                    decrease_step INTEGER,
+                    consecutive_floor_count INTEGER NOT NULL DEFAULT 0,
+                    last_strategy_action TEXT
                 )
             """)
             cursor.execute("""
@@ -200,3 +202,45 @@ class DatabaseManager:
                     "last_price": row[4],
                 }
             return None
+
+    def get_product_strategy_state(self, product_title: str) -> Dict[str, Any]:
+        """Retrieve strategy tracking state (consecutive floor count & last action)."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    "SELECT consecutive_floor_count, last_strategy_action FROM product_state WHERE product_title = ?",
+                    (product_title,),
+                )
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        "consecutive_floor_count": row[0] or 0,
+                        "last_strategy_action": row[1] or "",
+                    }
+            except Exception:
+                pass
+            return {"consecutive_floor_count": 0, "last_strategy_action": ""}
+
+    def update_product_strategy_state(
+        self,
+        product_title: str,
+        consecutive_floor_count: int,
+        last_strategy_action: str,
+    ):
+        """Update consecutive floor count and strategy action for a product."""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(
+                    """
+                    UPDATE product_state
+                    SET consecutive_floor_count = ?, last_strategy_action = ?
+                    WHERE product_title = ?
+                    """,
+                    (consecutive_floor_count, last_strategy_action, product_title),
+                )
+                conn.commit()
+            except Exception as e:
+                logger.warning(f"Error updating strategy state for {product_title}: {e}")
+

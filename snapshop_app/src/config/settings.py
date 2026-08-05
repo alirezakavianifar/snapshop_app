@@ -53,6 +53,11 @@ class Settings:
     DEFAULT_INCREASE_STEP: int = int(os.getenv("DEFAULT_INCREASE_STEP", "1000"))
     DEFAULT_DECREASE_STEP: int = int(os.getenv("DEFAULT_DECREASE_STEP", "1000"))
 
+    # Repricing Strategy Settings
+    REPRICING_STRATEGY: str = os.getenv("REPRICING_STRATEGY", "SMART_HYBRID") # SMART_HYBRID, MATCH, UNDERCUT
+    PROBE_RESET_THRESHOLD: int = int(os.getenv("PROBE_RESET_THRESHOLD", "3"))
+    PROBE_RESET_BOUNCE_PERCENT: float = float(os.getenv("PROBE_RESET_BOUNCE_PERCENT", "0.15"))
+
     def __init__(self):
         self.DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
         self.SESSION_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
