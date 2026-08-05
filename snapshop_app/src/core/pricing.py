@@ -334,8 +334,8 @@ def process_inventory_and_generate_update(
     if base_p_col in df.columns and disc_p_col in df.columns and "تخفیف دارد" in df.columns:
         updated_base = []
         updated_disc = []
-        for idx, row in df.iterrows():
-            new_p = new_prices[idx]
+        for row_idx, (_, row) in enumerate(df.iterrows()):
+            new_p = new_prices[row_idx]
             has_d = (row.get("تخفیف دارد") == 1)
             old_base = row.get(base_p_col, new_p)
             if pd.isna(old_base): old_base = new_p
