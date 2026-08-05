@@ -327,21 +327,40 @@ def process_inventory_and_generate_update(
 
         new_prices.append(calculated_p)
 
-    df[price_col] = new_prices
-
-    # Ensure valid discount fields for SnappShop bulk update validation
-    if "تخفیف دارد" in df.columns:
-        stock_col = "موجودی فروشگاه" if "موجودی فروشگاه" in df.columns else None
-        if "موجود در تخفیف" in df.columns:
-            if stock_col:
-                df["موجود در تخفیف"] = df["موجود در تخفیف"].fillna(df[stock_col]).fillna(99)
+    base_p_col = "قیمت به تومان"
+    disc_p_col = "قیمت بعد از تخفیف به تومان"
+    
+    # Assign prices based on discount flag for each row
+    if base_p_col in df.columns and disc_p_col in df.columns and "تخفیف دارد" in df.columns:
+        updated_base = []
+        updated_disc = []
+        for idx, row in df.iterrows():
+            new_p = new_prices[idx]
+            has_d = (row.get("تخفیف دارد") == 1)
+            old_base = row.get(base_p_col, new_p)
+            if pd.isna(old_base): old_base = new_p
+            
+            if has_d:
+                updated_disc.append(new_p)
+                updated_base.append(max(int(old_base), int(new_p)))
             else:
-                df["موجود در تخفیف"] = df["موجود در تخفیف"].fillna(99)
+                updated_base.append(new_p)
+                updated_disc.append(None)
                 
-        base_p_col = "قیمت به تومان"
-        disc_p_col = "قیمت بعد از تخفیف به تومان"
-        if base_p_col in df.columns and disc_p_col in df.columns:
-            df[base_p_col] = df[[base_p_col, disc_p_col]].max(axis=1)
+        df[base_p_col] = updated_base
+        df[disc_p_col] = updated_disc
+    elif disc_p_col in df.columns:
+        df[disc_p_col] = new_prices
+    elif base_p_col in df.columns:
+        df[base_p_col] = new_prices
+
+    # Ensure valid discount stock for SnappShop bulk update validation
+    if "تخفیف دارد" in df.columns and "موجود در تخفیف" in df.columns:
+        stock_col = "موجودی فروشگاه" if "موجودی فروشگاه" in df.columns else None
+        if stock_col:
+            df["موجود در تخفیف"] = df["موجود در تخفیف"].fillna(df[stock_col]).fillna(99)
+        else:
+            df["موجود در تخفیف"] = df["موجود در تخفیف"].fillna(99)
 
     # Save output Excel
     output_path.parent.mkdir(parents=True, exist_ok=True)
